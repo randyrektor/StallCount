@@ -68,8 +68,8 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
   const [isOpen, setIsOpen] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 10 } })
   );
 
   // Split roster into open and women
