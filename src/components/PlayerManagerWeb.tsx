@@ -30,23 +30,23 @@ function SortablePlayer({ player, index, isEditMode, onDelete }: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
   return (
     <div
-      ref={setNodeRef}
       style={{
         ...styles.playerRow,
-        touchAction: 'none',
-        opacity: isDragging ? 0.8 : 1,
-        transform: CSS.Transform.toString(transform),
-        transition,
       }}
-      {...attributes}
-      {...listeners}
     >
       <span style={styles.numberSlot}>{index + 1}</span>
       <div
+        ref={setNodeRef}
         style={{
           ...styles.playerItem,
           background: player.gender === 'O' ? '#4a90e2' : '#e83e8c',
+          touchAction: 'none',
+          opacity: isDragging ? 0.8 : 1,
+          transform: CSS.Transform.toString(transform),
+          transition,
         }}
+        {...attributes}
+        {...listeners}
       >
         <span style={styles.playerName}>{player.name}</span>
         {isEditMode && (
