@@ -68,7 +68,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
   const [isOpen, setIsOpen] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
+    useSensor(PointerSensor, { activationConstraint: { delay: 100, tolerance: 10 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 10 } })
   );
 
