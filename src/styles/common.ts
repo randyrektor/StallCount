@@ -4,9 +4,9 @@ import { COLORS } from '../constants';
 export const commonStyles = StyleSheet.create({
   cardContainer: {
     padding: 10,
-    backgroundColor: '#000',
+    backgroundColor: '#1a1a1a',
     borderRadius: 8,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: COLORS.border,
     alignItems: 'stretch',
     flexShrink: 0,
