@@ -125,6 +125,12 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
       // Add to appropriate queue at the end
       onLateArrival(newPlayerWithNumber);
       
+      // Add to the roster
+      const updatedRoster = newPlayer.gender === 'O'
+        ? [...openPlayers, newPlayerWithNumber, ...womenPlayers]
+        : [...openPlayers, ...womenPlayers, newPlayerWithNumber];
+      onRosterChange(assignNumbers(updatedRoster));
+      
       setNewPlayer({ name: '', gender: 'O' });
     }
   }
