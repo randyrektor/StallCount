@@ -130,7 +130,11 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     });
   }
 
-  function addPlayer() {
+  function handleGenderChange(gender: 'O' | 'W') {
+    setNewPlayer(prev => ({ ...prev, gender }));
+  }
+
+  function handleAddPlayer() {
     if (newPlayer.name.trim()) {
       const newPlayerWithNumber = {
         ...newPlayer,
@@ -138,9 +142,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
         uuid: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now()),
       };
 
-      // Only call onLateArrival - don't add to roster here
       onLateArrival(newPlayerWithNumber);
-      
       setNewPlayer({ name: '', gender: 'O' });
       inputRef.current?.focus();
     }
@@ -171,7 +173,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
               ref={inputRef}
               style={styles.input}
               value={newPlayer.name}
-              onChange={e => setNewPlayer({ ...newPlayer, name: e.target.value })}
+              onChange={e => setNewPlayer(prev => ({ ...prev, name: e.target.value }))}
               placeholder="New player name"
             />
             <div style={styles.genderButtons}>
@@ -180,7 +182,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                   ...styles.genderButton,
                   ...(newPlayer.gender === 'O' ? styles.genderButtonActiveOpen : {}),
                 }}
-                onClick={() => setNewPlayer({ ...newPlayer, gender: 'O' })}
+                onClick={() => handleGenderChange('O')}
               >
                 Open
               </button>
@@ -189,7 +191,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                   ...styles.genderButton,
                   ...(newPlayer.gender === 'W' ? styles.genderButtonActiveWomen : {}),
                 }}
-                onClick={() => setNewPlayer({ ...newPlayer, gender: 'W' })}
+                onClick={() => handleGenderChange('W')}
               >
                 Women
               </button>
@@ -199,7 +201,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                 ...styles.addButton,
                 ...(newPlayer.name.trim() ? {} : styles.addButtonDisabled),
               }}
-              onClick={addPlayer}
+              onClick={handleAddPlayer}
               disabled={!newPlayer.name.trim()}
             >
               Add Player
@@ -291,6 +293,8 @@ const styles: any = {
     margin: 0,
     fontFamily: baseFont,
     boxSizing: 'border-box',
+    position: 'relative',
+    zIndex: 1,
   },
   topBar: {
     display: 'flex',
@@ -328,6 +332,8 @@ const styles: any = {
     border: '1px solid rgba(255, 255, 255, 0.1)',
     fontFamily: baseFont,
     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)',
+    position: 'relative',
+    zIndex: 1,
   },
   input: {
     background: COLORS.input,
@@ -346,6 +352,8 @@ const styles: any = {
     gap: 8,
     marginBottom: 8,
     fontFamily: baseFont,
+    position: 'relative',
+    zIndex: 2,
   },
   genderButton: {
     flex: 1,
@@ -358,6 +366,9 @@ const styles: any = {
     cursor: 'pointer',
     fontSize: 16,
     fontFamily: baseFont,
+    position: 'relative',
+    zIndex: 3,
+    pointerEvents: 'auto',
   },
   genderButtonActiveOpen: {
     background: COLORS.open,
@@ -375,6 +386,9 @@ const styles: any = {
     fontSize: 16,
     cursor: 'pointer',
     fontFamily: baseFont,
+    position: 'relative',
+    zIndex: 3,
+    pointerEvents: 'auto',
   },
   addButtonDisabled: {
     opacity: 0.5,
@@ -400,6 +414,8 @@ const styles: any = {
     overflow: 'visible',
     fontFamily: baseFont,
     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)',
+    position: 'relative',
+    zIndex: 1,
   },
   rosterTitle: {
     color: COLORS.text,
