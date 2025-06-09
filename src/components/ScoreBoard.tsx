@@ -43,6 +43,8 @@ interface ScoreBoardProps {
   lineHistory: any[];
   scoreHistory: any[];
   onLateArrival: (player: Player) => void;
+  pendingPlayers: Player[];
+  gameStarted: boolean;
 }
 
 export function ScoreBoard({
@@ -69,7 +71,9 @@ export function ScoreBoard({
   nextWomanQueue,
   lineHistory,
   scoreHistory,
-  onLateArrival
+  onLateArrival,
+  pendingPlayers,
+  gameStarted
 }: ScoreBoardProps) {
   const [flashTeam, setFlashTeam] = useState<null | 1 | 2>(null);
   const patternIndex = lineIndex % 4;
@@ -133,8 +137,12 @@ export function ScoreBoard({
       {/* Timers and settings in black card area only */}
       <View style={[styles.topBar, isMobile && styles.topBarMobile]}>
         <View style={[styles.timersContainer, isMobile && styles.timersContainerMobile]}>
-          <Text style={styles.timerText}>Halftime in: {halftimeCountdown}</Text>
-          <Text style={styles.timerText}>Game ends: {endCountdown}</Text>
+          {gameStarted && (
+            <>
+              <Text style={styles.timerText}>Halftime in: {halftimeCountdown}</Text>
+              <Text style={styles.timerText}>Game ends: {endCountdown}</Text>
+            </>
+          )}
         </View>
         <View style={styles.topBarButtons}>
           {scoreHistory.length > 0 && (

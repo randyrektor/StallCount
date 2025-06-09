@@ -12,6 +12,9 @@ import './src/global.css';
 
 // Simple UUID generator
 function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -94,6 +97,7 @@ export default function App() {
   });
   const [masterOpenQueue, setMasterOpenQueue] = useState<Player[]>([]);
   const [masterWomenQueue, setMasterWomenQueue] = useState<Player[]>([]);
+  const [pendingPlayers, setPendingPlayers] = useState<Player[]>([]);
   const [lineIndex, setLineIndex] = useState(0);
   const [pointNumber, setPointNumber] = useState(1);
   const [lineMode, setLineMode] = useState<'ABBA' | '4-3'>('ABBA');
@@ -104,6 +108,7 @@ export default function App() {
   const [endTime, setEndTime] = useState<string>('20:15');             // 8:15pm default
   const [genderRatioMode, setGenderRatioMode] = useState<'ABBA' | '4-3' | '3-4'>('ABBA');
   const [scoreHistory, setScoreHistory] = useState<ScoreEvent[]>([]);
+  const [gameStarted, setGameStarted] = useState(false);
 
   // Countdown logic (moved from ScoreBoard)
   const [halftimeCountdown, setHalftimeCountdown] = useState('');
@@ -119,13 +124,16 @@ export default function App() {
 
   // Initialize queues on mount
   useEffect(() => {
-    const numbered = assignNumbers(roster);
-    const newOpenPlayers = numbered.filter(p => p.gender === 'O');
-    const newWomenPlayers = numbered.filter(p => p.gender === 'W');
-    setMasterOpenQueue(newOpenPlayers);
-    setMasterWomenQueue(newWomenPlayers);
-    setOpenIndex(0);
-    setWomenIndex(0);
+    // Only initialize if queues are empty
+    if (masterOpenQueue.length === 0 && masterWomenQueue.length === 0) {
+      const numbered = assignNumbers(roster);
+      const newOpenPlayers = numbered.filter(p => p.gender === 'O');
+      const newWomenPlayers = numbered.filter(p => p.gender === 'W');
+      setMasterOpenQueue(newOpenPlayers);
+      setMasterWomenQueue(newWomenPlayers);
+      setOpenIndex(0);
+      setWomenIndex(0);
+    }
   }, [roster]);
 
   // Calculate total players used so far for proper rotation
@@ -178,6 +186,7 @@ export default function App() {
 
     const interval = setInterval(() => {
       const now = new Date();
+      const startDate = parseTimeToDate(gameStartTime);
       const halftimeDate = parseTimeToDate(halftimeTime);
       const endDate = parseTimeToDate(endTime);
       
@@ -185,6 +194,16 @@ export default function App() {
         setHalftimeCountdown('00:00');
         setEndCountdown('00:00');
         return;
+      }
+
+      // Check if game has started
+      if (startDate && now >= startDate) {
+        setGameStarted(true);
+      }
+
+      // Check if game has ended
+      if (endDate && now >= endDate) {
+        setGameStarted(false);
       }
 
       const halftimeMs = halftimeDate.getTime() - now.getTime();
@@ -196,6 +215,7 @@ export default function App() {
 
     // Initial set
     const now = new Date();
+    const startDate = parseTimeToDate(gameStartTime);
     const halftimeDate = parseTimeToDate(halftimeTime);
     const endDate = parseTimeToDate(endTime);
     
@@ -205,6 +225,11 @@ export default function App() {
       return;
     }
 
+    // Set initial game started state
+    if (startDate && now >= startDate) {
+      setGameStarted(true);
+    }
+
     const halftimeMs = halftimeDate.getTime() - now.getTime();
     const endMs = endDate.getTime() - now.getTime();
     
@@ -212,7 +237,7 @@ export default function App() {
     setEndCountdown(formatCountdown(endMs));
 
     return () => clearInterval(interval);
-  }, [halftimeTime, endTime]);
+  }, [gameStartTime, halftimeTime, endTime]);
 
   // Helper to get N players from a queue, wrapping if needed
   function getWrapped<T>(queue: T[], start: number, count: number): T[] {
@@ -339,13 +364,90 @@ export default function App() {
 
   // Add function to handle late arrivals
   const handleLateArrival = (player: Player) => {
-    // Add to appropriate queue at the end
-    if (player.gender === 'O') {
-      setMasterOpenQueue(prev => [...prev, player]);
+    // Check if player would be in current line by simulating adding them to the master queue
+    const simulatedMasterOpenQueue = player.gender === 'O' 
+      ? [...masterOpenQueue, player]
+      : masterOpenQueue;
+    const simulatedMasterWomenQueue = player.gender === 'W'
+      ? [...masterWomenQueue, player]
+      : masterWomenQueue;
+    
+    // Get the current line from the simulated master queues
+    const simulatedCurrentLine = getLine(
+      getWrapped(simulatedMasterOpenQueue, openIndex, currentPattern.men),
+      getWrapped(simulatedMasterWomenQueue, womenIndex, currentPattern.women),
+      currentPattern
+    );
+    
+    const wouldBeInCurrentLine = simulatedCurrentLine.some(p => p.uuid === player.uuid);
+    
+    if (wouldBeInCurrentLine) {
+      // If player would be in current line, add to pending
+      setPendingPlayers(prev => [...prev, player]);
     } else {
-      setMasterWomenQueue(prev => [...prev, player]);
+      // If player would not be in current line, add directly to rotation
+      if (player.gender === 'O') {
+        setMasterOpenQueue(prev => [...prev, player]);
+      } else {
+        setMasterWomenQueue(prev => [...prev, player]);
+      }
+      // Add to roster immediately
+      setRoster(prev => {
+        const updated = [...prev, player];
+        return assignNumbers(updated);
+      });
     }
   };
+
+  // Add effect to check pending players when line changes
+  useEffect(() => {
+    if (pendingPlayers.length === 0) return;
+
+    // Only process pending players when the line changes
+    const currentLine = getLine(currentOpenQueue, currentWomanQueue, currentPattern);
+    const allCurrentLinePlayers = new Set(currentLine.map(p => p.uuid));
+    
+    // Try to add any pending players that aren't in current line
+    pendingPlayers.forEach(player => {
+      if (!allCurrentLinePlayers.has(player.uuid)) {
+        // Add to the appropriate queue
+        if (player.gender === 'O') {
+          setMasterOpenQueue(prev => [...prev, player]);
+        } else {
+          setMasterWomenQueue(prev => [...prev, player]);
+        }
+        
+        // Add to roster when no longer pending
+        setRoster(prev => {
+          const updated = [...prev, player];
+          return assignNumbers(updated);
+        });
+        
+        // Remove from pending players
+        setPendingPlayers(prev => prev.filter(p => p.uuid !== player.uuid));
+      }
+    });
+  }, [lineIndex]); // Only run when lineIndex changes
+
+  // Add effect to handle roster changes without resetting queues
+  useEffect(() => {
+    // Only update the roster numbers without changing queue order
+    const numbered = assignNumbers(roster);
+    setMasterOpenQueue(prev => {
+      const updated = prev.map(p => {
+        const newPlayer = numbered.find(np => np.uuid === p.uuid);
+        return newPlayer ? { ...p, number: newPlayer.number } : p;
+      });
+      return updated;
+    });
+    setMasterWomenQueue(prev => {
+      const updated = prev.map(p => {
+        const newPlayer = numbered.find(np => np.uuid === p.uuid);
+        return newPlayer ? { ...p, number: newPlayer.number } : p;
+      });
+      return updated;
+    });
+  }, [roster]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -419,10 +521,10 @@ export default function App() {
               onTeam2ScoreChange={handleTeam2ScoreChange}
               lineIndex={lineIndex}
               pointNumber={pointNumber}
+              lineMode={lineMode}
               onPointNumberChange={handlePointNumberChange}
               onLineIndexChange={handleLineIndexChange}
               onReset={handleReset}
-              lineMode={lineMode}
               genderRatioMode={genderRatioMode}
               halftimeCountdown={halftimeCountdown}
               endCountdown={endCountdown}
@@ -435,6 +537,8 @@ export default function App() {
               lineHistory={lineHistory}
               scoreHistory={scoreHistory}
               onLateArrival={handleLateArrival}
+              pendingPlayers={pendingPlayers}
+              gameStarted={gameStarted}
             />
             <View style={{ marginTop: 16 }} />
             <PlayerManager
@@ -442,6 +546,7 @@ export default function App() {
               onRosterChange={setRoster}
               scrollViewRef={scrollViewRef}
               onLateArrival={handleLateArrival}
+              pendingPlayers={pendingPlayers}
             />
           </View>
         </GHScrollView>

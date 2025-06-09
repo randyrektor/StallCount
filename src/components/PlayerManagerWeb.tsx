@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -24,9 +24,10 @@ interface PlayerManagerWebProps {
   onRosterChange: (newRoster: Player[]) => void;
   scrollViewRef?: any;
   onLateArrival: (player: Player) => void;
+  pendingPlayers: Player[];
 }
 
-function SortablePlayer({ player, index, isEditMode, onDelete }: any) {
+function SortablePlayer({ player, index, isEditMode, onDelete, isPending }: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
   return (
     <div
@@ -39,16 +40,22 @@ function SortablePlayer({ player, index, isEditMode, onDelete }: any) {
         ref={setNodeRef}
         style={{
           ...styles.playerItem,
-          background: player.gender === 'O' ? '#4a90e2' : '#e83e8c',
+          background: player.gender === 'O' 
+            ? (isPending ? 'rgba(74,144,226,0.3)' : '#4a90e2')
+            : (isPending ? 'rgba(232,62,140,0.3)' : '#e83e8c'),
           touchAction: 'none',
           opacity: isDragging ? 0.8 : 1,
           transform: CSS.Transform.toString(transform),
           transition,
+          position: 'relative',
         }}
         {...attributes}
         {...listeners}
       >
         <span style={styles.playerName}>{player.name}</span>
+        {isPending && (
+          <span style={styles.pendingBadge}>Pending</span>
+        )}
         {isEditMode && (
           <button
             style={styles.deleteButton}
@@ -62,10 +69,11 @@ function SortablePlayer({ player, index, isEditMode, onDelete }: any) {
   );
 }
 
-export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: PlayerManagerWebProps) {
+export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendingPlayers }: PlayerManagerWebProps) {
+  const [isVisible, setIsVisible] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [newPlayer, setNewPlayer] = useState<{ name: string; gender: 'O' | 'W' }>({ name: '', gender: 'O' });
-  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { delay: 100, tolerance: 10 } }),
@@ -76,26 +84,31 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
   const openPlayers = useMemo(() => roster.filter(p => p.gender === 'O'), [roster]);
   const womenPlayers = useMemo(() => roster.filter(p => p.gender === 'W'), [roster]);
 
-  function handleDragEndOpen(event: any) {
-    const { active, over } = event;
-    if (active.id !== over?.id) {
-      const oldIndex = openPlayers.findIndex(p => p.uuid === active.id);
-      const newIndex = openPlayers.findIndex(p => p.uuid === over.id);
-      const newOpen = arrayMove(openPlayers, oldIndex, newIndex);
-      const newRoster = [...newOpen, ...womenPlayers];
-      onRosterChange(assignNumbers(newRoster));
-    }
-  }
+  // Split pending players into open and women
+  const pendingOpenPlayers = useMemo(() => pendingPlayers.filter(p => p.gender === 'O'), [pendingPlayers]);
+  const pendingWomenPlayers = useMemo(() => pendingPlayers.filter(p => p.gender === 'W'), [pendingPlayers]);
 
-  function handleDragEndWomen(event: any) {
+  // Consolidated drag end handler
+  function handleDragEnd(event: any, gender: 'O' | 'W') {
     const { active, over } = event;
-    if (active.id !== over?.id) {
-      const oldIndex = womenPlayers.findIndex(p => p.uuid === active.id);
-      const newIndex = womenPlayers.findIndex(p => p.uuid === over.id);
-      const newWomen = arrayMove(womenPlayers, oldIndex, newIndex);
-      const newRoster = [...openPlayers, ...newWomen];
-      onRosterChange(assignNumbers(newRoster));
-    }
+    if (!over || active.id === over.id) return;
+
+    const updated = [...roster]; // Copy the full current roster
+
+    // Filter by gender
+    const groupPlayers = updated.filter(p => p.gender === gender);
+    const otherPlayers = updated.filter(p => p.gender !== gender);
+
+    const oldIndex = groupPlayers.findIndex(p => p.uuid === active.id);
+    const newIndex = groupPlayers.findIndex(p => p.uuid === over.id);
+
+    const reordered = arrayMove(groupPlayers, oldIndex, newIndex);
+
+    // Combine reordered group with preserved other group (maintaining order)
+    const newRoster =
+      gender === 'O' ? [...reordered, ...otherPlayers] : [...otherPlayers, ...reordered];
+
+    onRosterChange(assignNumbers(newRoster));
   }
 
   function handleDeletePlayer(player: Player) {
@@ -119,32 +132,24 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
       const newPlayerWithNumber = {
         ...newPlayer,
         number: newPlayer.gender === 'O' ? openPlayers.length + 1 : womenPlayers.length + 1,
-        uuid: Math.random().toString(36).slice(2),
+        uuid: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now()),
       };
 
-      // Add to appropriate queue at the end
+      // Only call onLateArrival - don't add to roster here
       onLateArrival(newPlayerWithNumber);
       
-      // Add to the roster
-      const updatedRoster = newPlayer.gender === 'O'
-        ? [...openPlayers, newPlayerWithNumber, ...womenPlayers]
-        : [...openPlayers, ...womenPlayers, newPlayerWithNumber];
-      onRosterChange(assignNumbers(updatedRoster));
-      
       setNewPlayer({ name: '', gender: 'O' });
+      inputRef.current?.focus();
     }
   }
 
   return (
     <div style={styles.container}>
       <div style={styles.topBar}>
-        <button
-          style={styles.hideButton}
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {isOpen ? 'Hide Player Manager' : 'Show Player Manager'}
+        <button style={styles.hideButton} onClick={() => setIsVisible(!isVisible)}>
+          {isVisible ? 'Hide Player Manager' : 'Show Player Manager'}
         </button>
-        {isOpen && (
+        {isVisible && (
           <>
             <div style={{ flex: 1 }} />
             <button
@@ -156,10 +161,11 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
           </>
         )}
       </div>
-      {isOpen && (
+      {isVisible && (
         <>
           <div style={styles.addPlayerSection}>
             <input
+              ref={inputRef}
               style={styles.input}
               value={newPlayer.name}
               onChange={e => setNewPlayer({ ...newPlayer, name: e.target.value })}
@@ -200,7 +206,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
             {/* Open Section */}
             <div style={styles.rosterContainer}>
               <div style={styles.rosterTitle}>Open</div>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndOpen}>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'O')}>
                 <SortableContext items={openPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
                   {openPlayers.map((player, idx) => (
                     <SortablePlayer
@@ -209,15 +215,30 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
                       index={idx}
                       isEditMode={isEditMode}
                       onDelete={handleDeletePlayer}
+                      isPending={pendingPlayers.some(p => p.uuid === player.uuid)}
                     />
                   ))}
                 </SortableContext>
               </DndContext>
+              {/* Show pending open players */}
+              {pendingOpenPlayers.map((player, idx) => (
+                <div key={player.uuid} style={styles.playerRow}>
+                  <span style={styles.numberSlot}>P</span>
+                  <div style={{
+                    ...styles.playerItem,
+                    background: 'rgba(74,144,226,0.3)',
+                    opacity: 0.7,
+                  }}>
+                    <span style={styles.playerName}>{player.name}</span>
+                    <span style={styles.pendingBadge}>Pending</span>
+                  </div>
+                </div>
+              ))}
             </div>
             {/* Women Section */}
             <div style={styles.rosterContainer}>
               <div style={styles.rosterTitle}>Women</div>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndWomen}>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'W')}>
                 <SortableContext items={womenPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
                   {womenPlayers.map((player, idx) => (
                     <SortablePlayer
@@ -226,10 +247,25 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival }: Play
                       index={idx}
                       isEditMode={isEditMode}
                       onDelete={handleDeletePlayer}
+                      isPending={pendingPlayers.some(p => p.uuid === player.uuid)}
                     />
                   ))}
                 </SortableContext>
               </DndContext>
+              {/* Show pending women players */}
+              {pendingWomenPlayers.map((player, idx) => (
+                <div key={player.uuid} style={styles.playerRow}>
+                  <span style={styles.numberSlot}>P</span>
+                  <div style={{
+                    ...styles.playerItem,
+                    background: 'rgba(232,62,140,0.3)',
+                    opacity: 0.7,
+                  }}>
+                    <span style={styles.playerName}>{player.name}</span>
+                    <span style={styles.pendingBadge}>Pending</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </>
@@ -370,7 +406,6 @@ const styles: any = {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
     minHeight: 10,
     fontFamily: baseFont,
   },
@@ -385,16 +420,18 @@ const styles: any = {
     fontFamily: baseFont,
   },
   playerItem: {
-    flex: 1,
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '8px 12px',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    width: '100%',
+    minWidth: 90,
+    padding: '6px 12px',
     borderRadius: 4,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+    marginBottom: 8,
+    cursor: 'grab',
+    transition: 'all 0.3s ease',
+    border: '1px solid transparent',
     position: 'relative',
-    fontFamily: baseFont,
-    margin: '0px 0',
   },
   playerName: {
     color: COLORS.text,
@@ -445,5 +482,16 @@ const styles: any = {
   },
   lateArrivalToggle: {
     marginBottom: 12,
+  },
+  pendingBadge: {
+    position: 'absolute',
+    right: 8,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'rgba(0,0,0,0.2)',
+    padding: '2px 6px',
+    borderRadius: 4,
+    fontSize: 12,
+    color: COLORS.textSecondary,
   },
 }; 
