@@ -18,6 +18,23 @@ const COLORS = {
   input: '#333333',
 };
 
+// Gradient blob colors
+const BLOB_COLORS = {
+  blue: 'rgba(74, 144, 226, 0.15)',  // COLORS.open with low opacity
+  pink: 'rgba(232, 62, 140, 0.15)',  // COLORS.women with low opacity
+  purple: 'rgba(147, 51, 234, 0.15)', // Additional accent color
+};
+
+const GradientBlobs = () => {
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <View style={[styles.blob, styles.blob1]} />
+      <View style={[styles.blob, styles.blob2]} />
+      <View style={[styles.blob, styles.blob3]} />
+    </View>
+  );
+};
+
 interface ScoreBoardProps {
   team1Name: string;
   team2Name: string;
@@ -134,6 +151,7 @@ export function ScoreBoard({
 
   return (
     <View style={styles.container}>
+      <GradientBlobs />
       {/* Timers and settings in black card area only */}
       <View style={[styles.topBar, isMobile && styles.topBarMobile]}>
         <View style={[styles.timersContainer, isMobile && styles.timersContainerMobile]}>
@@ -332,17 +350,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     position: 'relative',
     paddingHorizontal: 0,
+    gap: 10,
   },
   teamBox: {
     flex: 1,
     alignItems: 'center',
     padding: 10,
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(81, 80, 83, 0.3)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginHorizontal: 0,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     minWidth: 90,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 30,
+    elevation: 5,
   },
   teamName: {
     fontSize: 20,
@@ -408,7 +431,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.text,
     textAlign: 'center',
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -418,21 +441,30 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   scoreDiffPositive: {
-    color: COLORS.scoreButtonPlus,
+    color: '#2ecc71',
+    backgroundColor: 'rgba(46, 204, 113, 0.2)',
   },
   scoreDiffNegative: {
-    color: COLORS.scoreButtonMinus,
+    color: '#e74c3c',
+    backgroundColor: 'rgba(231, 76, 60, 0.2)',
   },
   lineInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 10,
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(81, 80, 83, 0.3)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
     borderRadius: 8,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 30,
+    elevation: 5,
   },
   lineInfoLeft: {
     flexDirection: 'row',
@@ -452,7 +484,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 4,
-    backgroundColor: COLORS.input,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   patternItemActive: {
     backgroundColor: COLORS.open,
@@ -469,11 +501,18 @@ const styles = StyleSheet.create({
   },
   lineSection: {
     flex: 1,
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(81, 80, 83, 0.3)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
     borderRadius: 8,
     padding: 10,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 30,
+    elevation: 5,
   },
   lineTitle: {
     fontSize: 18,
@@ -543,5 +582,36 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  // Add new blob styles
+  blob: {
+    position: 'absolute',
+    borderRadius: 1000,
+    filter: 'blur(80px)',
+    opacity: 0.7,
+  },
+  blob1: {
+    width: 500,
+    height: 500,
+    backgroundColor: BLOB_COLORS.blue,
+    top: -100,
+    left: -100,
+    transform: [{ scale: 1.2 }],
+  },
+  blob2: {
+    width: 500,
+    height: 500,
+    backgroundColor: BLOB_COLORS.pink,
+    bottom: -100,
+    right: -50,
+    transform: [{ scale: 1.1 }],
+  },
+  blob3: {
+    width: 550,
+    height: 550,
+    backgroundColor: BLOB_COLORS.purple,
+    top: '80%',
+    left: '30%',
+    transform: [{ scale: 0.9 }],
   },
 }); 
