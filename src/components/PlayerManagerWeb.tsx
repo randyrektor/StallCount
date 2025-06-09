@@ -29,6 +29,7 @@ interface PlayerManagerWebProps {
 
 function SortablePlayer({ player, index, isEditMode, onDelete, isPending }: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
+
   return (
     <div
       style={{
@@ -70,7 +71,7 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending }: any)
 }
 
 export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendingPlayers }: PlayerManagerWebProps) {
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [newPlayer, setNewPlayer] = useState<{ name: string; gender: 'O' | 'W' }>({ name: '', gender: 'O' });
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,11 +109,13 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     const newRoster =
       gender === 'O' ? [...reordered, ...otherPlayers] : [...otherPlayers, ...reordered];
 
-    onRosterChange(assignNumbers(newRoster));
+    // Update both roster and master queues
+    onRosterChange(newRoster);
   }
 
   function handleDeletePlayer(player: Player) {
-    onRosterChange(assignNumbers(roster.filter(p => p.uuid !== player.uuid)));
+    // Simply remove the player without reassigning numbers
+    onRosterChange(roster.filter(p => p.uuid !== player.uuid));
   }
 
   function assignNumbers(players: Player[]) {

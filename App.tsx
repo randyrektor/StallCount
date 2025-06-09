@@ -169,9 +169,9 @@ export default function App() {
       if (isNaN(h) || isNaN(m)) return null;
       const d = new Date(now);
       d.setHours(h, m, 0, 0);
-      // If the time has already passed today, set it to tomorrow
+      // If the time has already passed today, set it to today instead of tomorrow
       if (d < now) {
-        d.setDate(d.getDate() + 1);
+        d.setDate(d.getDate());
       }
       return d;
     }
@@ -431,23 +431,46 @@ export default function App() {
 
   // Add effect to handle roster changes without resetting queues
   useEffect(() => {
-    // Only update the roster numbers without changing queue order
-    const numbered = assignNumbers(roster);
-    setMasterOpenQueue(prev => {
-      const updated = prev.map(p => {
-        const newPlayer = numbered.find(np => np.uuid === p.uuid);
-        return newPlayer ? { ...p, number: newPlayer.number } : p;
-      });
-      return updated;
-    });
-    setMasterWomenQueue(prev => {
-      const updated = prev.map(p => {
-        const newPlayer = numbered.find(np => np.uuid === p.uuid);
-        return newPlayer ? { ...p, number: newPlayer.number } : p;
-      });
-      return updated;
-    });
-  }, [roster]);
+    // Get current line players
+    const currentLine = getLine(currentOpenQueue, currentWomanQueue, currentPattern);
+    const currentLinePlayerIds = new Set(currentLine.map(p => p.uuid));
+    
+    // Check if any deleted players were in the current line
+    const deletedPlayers = roster.filter(p => !currentLinePlayerIds.has(p.uuid));
+    const anyDeletedInCurrentLine = deletedPlayers.some(p => currentLinePlayerIds.has(p.uuid));
+    
+    // Only update master queues if no players in current line were deleted
+    if (!anyDeletedInCurrentLine) {
+      // Update the master queues with the new roster order, maintaining existing numbers
+      const newOpenPlayers = roster.filter(p => p.gender === 'O');
+      const newWomenPlayers = roster.filter(p => p.gender === 'W');
+      
+      // Calculate new indices to maintain the same relative position
+      const newOpenIndex = Math.min(openIndex, newOpenPlayers.length - 1);
+      const newWomenIndex = Math.min(womenIndex, newWomenPlayers.length - 1);
+      
+      setMasterOpenQueue(newOpenPlayers);
+      setMasterWomenQueue(newWomenPlayers);
+      setOpenIndex(newOpenIndex);
+      setWomenIndex(newWomenIndex);
+    }
+  }, [roster, genderRatioMode]);
+
+  // Add effect to handle gender ratio mode changes
+  useEffect(() => {
+    // When gender ratio mode changes, update the master queues with the current roster order
+    const newOpenPlayers = roster.filter(p => p.gender === 'O');
+    const newWomenPlayers = roster.filter(p => p.gender === 'W');
+    
+    // Calculate new indices to maintain the same relative position
+    const newOpenIndex = Math.min(openIndex, newOpenPlayers.length - 1);
+    const newWomenIndex = Math.min(womenIndex, newWomenPlayers.length - 1);
+    
+    setMasterOpenQueue(newOpenPlayers);
+    setMasterWomenQueue(newWomenPlayers);
+    setOpenIndex(newOpenIndex);
+    setWomenIndex(newWomenIndex);
+  }, [genderRatioMode]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
