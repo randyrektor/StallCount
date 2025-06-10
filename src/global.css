@@ -31,8 +31,8 @@ html, body {
 .blob::after {
   content: '';
   position: absolute;
-  width: 500px;
-  height: 500px;
+  width: 100vmax;
+  height: 100vmax;
   border-radius: 50%;
   filter: blur(100px);
   opacity: 0.6;
@@ -41,30 +41,30 @@ html, body {
 
 .blob::before {
   background: #4a90e2;
-  top: 0%;
-  left: 0%;
+  top: -50%;
+  left: -50%;
   animation-delay: -5s;
 }
 
 .blob::after {
   background: #e83e8c;
-  bottom: 40%;
-  right: 0%;
+  bottom: -50%;
+  right: -50%;
   animation-delay: -10s;
 }
 
 .blob > div {
   content: '';
   position: absolute;
-  width: 500px;
-  height: 500px;
+  width: 100vmax;
+  height: 100vmax;
   border-radius: 50%;
   filter: blur(100px);
   opacity: 0.5;
   animation: blob-animation 20s infinite alternate;
   background: #9b4dca;
-  top: 60%;
-  left: 40%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
   animation-delay: -15s;
 }

@@ -22,9 +22,9 @@ const COLORS = {
 
 // Gradient blob colors
 const BLOB_COLORS = {
-  blue: 'rgba(74, 144, 226, 0.30)',  // COLORS.open with low opacity
-  pink: 'rgba(232, 62, 140, 0.25)',  // COLORS.women with low opacity
-  purple: 'rgba(147, 51, 234, 0.25)', // Additional accent color
+  blue: 'rgba(74, 144, 226, 0.15)',  // COLORS.open with low opacity
+  pink: 'rgba(232, 62, 140, 0.15)',  // COLORS.women with low opacity
+  purple: 'rgba(147, 51, 234, 0.15)', // Additional accent color
 };
 
 const GradientBlobs = () => {
