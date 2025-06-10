@@ -11,8 +11,10 @@ const COLORS = {
   card: '#2d2d2d',
   text: '#ffffff',
   textSecondary: '#b3b3b3',
-  open: '#4a90e2',
-  women: '#e83e8c',
+  open: '#4a90e2', // Modern blue
+  women: '#e83e8c', // Modern pink
+  openMuted: 'rgba(50, 74, 106, 0.3)',
+  womenMuted: 'rgba(106, 50, 74, 0.3)',
   scoreButtonMinus: '#e74c3c',
   scoreButtonPlus: '#2ecc71',
   border: '#404040',
@@ -231,7 +233,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                   <span style={styles.numberSlot}>P</span>
                   <div style={{
                     ...styles.playerItem,
-                    background: 'rgba(74,144,226,0.3)',
+                    background: COLORS.openMuted,
                     opacity: 0.7,
                   }}>
                     <span style={styles.playerName}>{player.name}</span>
@@ -263,7 +265,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                   <span style={styles.numberSlot}>P</span>
                   <div style={{
                     ...styles.playerItem,
-                    background: 'rgba(232,62,140,0.3)',
+                    background: COLORS.womenMuted,
                     opacity: 0.7,
                   }}>
                     <span style={styles.playerName}>{player.name}</span>

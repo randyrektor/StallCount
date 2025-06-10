@@ -7,7 +7,6 @@ html, body, #root {
   padding: 0;
   box-sizing: border-box;
   position: relative;
-  overflow: hidden;
 }
 
 html, body {
