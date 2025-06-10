@@ -6,12 +6,14 @@ import { commonStyles } from '../styles/common';
 
 // Modern color palette
 const COLORS = {
-  background: '#1a1a1a',
+  background: '#1d1d1d',
   card: '#2d2d2d',
   text: '#ffffff',
   textSecondary: '#b3b3b3',
   open: '#4a90e2', // Modern blue
   women: '#e83e8c', // Modern pink
+  openMuted: '#324a6a', // Medium muted blue
+  womenMuted: '#6a324a', // Medium muted pink
   scoreButtonMinus: '#e74c3c',
   scoreButtonPlus: '#2ecc71',
   border: '#404040',
@@ -20,9 +22,9 @@ const COLORS = {
 
 // Gradient blob colors
 const BLOB_COLORS = {
-  blue: 'rgba(74, 144, 226, 0.15)',  // COLORS.open with low opacity
-  pink: 'rgba(232, 62, 140, 0.15)',  // COLORS.women with low opacity
-  purple: 'rgba(147, 51, 234, 0.15)', // Additional accent color
+  blue: 'rgba(74, 144, 226, 0.30)',  // COLORS.open with low opacity
+  pink: 'rgba(232, 62, 140, 0.25)',  // COLORS.women with low opacity
+  purple: 'rgba(147, 51, 234, 0.25)', // Additional accent color
 };
 
 const GradientBlobs = () => {
@@ -44,9 +46,6 @@ interface ScoreBoardProps {
   onTeam2ScoreChange: (score: number) => void;
   lineIndex: number;
   pointNumber: number;
-  lineMode: 'ABBA' | '4-3';
-  onPointNumberChange: (point: number) => void;
-  onLineIndexChange: (index: number) => void;
   onReset: () => void;
   genderRatioMode?: 'ABBA' | '4-3' | '3-4';
   halftimeCountdown: string;
@@ -73,9 +72,6 @@ export function ScoreBoard({
   onTeam2ScoreChange,
   lineIndex,
   pointNumber,
-  lineMode,
-  onPointNumberChange,
-  onLineIndexChange,
   onReset,
   genderRatioMode = 'ABBA',
   halftimeCountdown,
@@ -94,7 +90,6 @@ export function ScoreBoard({
 }: ScoreBoardProps) {
   const [flashTeam, setFlashTeam] = useState<null | 1 | 2>(null);
   const patternIndex = lineIndex % 4;
-  const isPatternA = patternIndex === 0 || patternIndex === 3;
   
   // Defensive: default all queues to empty arrays if undefined
   openQueue = openQueue || [];
@@ -113,18 +108,6 @@ export function ScoreBoard({
     if (mod === 0 || mod === 3) return { men: 4, women: 3 };
     return { men: 3, women: 4 };
   }
-
-  // Calculate how many players have been used in total
-  const totalPlayersUsed = (() => {
-    let menUsed = 0;
-    let womenUsed = 0;
-    for (let i = 0; i < lineIndex; i++) {
-      const pattern = getPattern(i);
-      menUsed += pattern.men;
-      womenUsed += pattern.women;
-    }
-    return { menUsed, womenUsed };
-  })();
 
   // Get the current pattern
   const currentPattern = getPattern(lineIndex);
@@ -284,9 +267,7 @@ export function ScoreBoard({
                 key={index} 
                 style={[
                   styles.playerContainer,
-                  { backgroundColor: player.gender === 'O'
-                      ? 'rgba(74,144,226,0.3)'
-                      : 'rgba(232,62,140,0.3)' }
+                  { backgroundColor: player.gender === 'O' ? COLORS.openMuted : COLORS.womenMuted }
                 ]}
               >
                 <Text style={[styles.playerText, { color: COLORS.textSecondary }]}> 
@@ -454,8 +435,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 10,
     backgroundColor: 'rgba(81, 80, 83, 0.3)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
     borderRadius: 8,
     marginBottom: 10,
     borderWidth: 1,
@@ -502,8 +481,6 @@ const styles = StyleSheet.create({
   lineSection: {
     flex: 1,
     backgroundColor: 'rgba(81, 80, 83, 0.3)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
     borderRadius: 8,
     padding: 10,
     borderWidth: 1,
@@ -610,7 +587,7 @@ const styles = StyleSheet.create({
     width: 550,
     height: 550,
     backgroundColor: BLOB_COLORS.purple,
-    top: '80%',
+    top: '90%',
     left: '30%',
     transform: [{ scale: 0.9 }],
   },

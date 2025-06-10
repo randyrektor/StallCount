@@ -209,7 +209,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
           </div>
           <div style={styles.rostersSection}>
             {/* Open Section */}
-            <div style={styles.rosterContainer}>
+            <div style={{ ...styles.rosterContainer, ...styles.rosterContainerFirst }}>
               <div style={styles.rosterTitle}>Open</div>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'O')}>
                 <SortableContext items={openPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
@@ -241,7 +241,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
               ))}
             </div>
             {/* Women Section */}
-            <div style={styles.rosterContainer}>
+            <div style={{ ...styles.rosterContainer, ...styles.rosterContainerSecond }}>
               <div style={styles.rosterTitle}>Women</div>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'W')}>
                 <SortableContext items={womenPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
@@ -282,33 +282,20 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
 const baseFont = 'system-ui, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
 
 const styles: any = {
-  container: {
-    ...commonStyles.cardContainer,
-    background: COLORS.background,
-    padding: 10,
-    borderRadius: 8,
-    border: `1px solid ${COLORS.border}`,
-    width: '100%',
-    maxWidth: '100%',
-    margin: 0,
-    fontFamily: baseFont,
-    boxSizing: 'border-box',
-    position: 'relative',
-    zIndex: 1,
-  },
   topBar: {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-    gap: 10,
+    position: 'relative',
+    zIndex: 1,
   },
   hideButton: {
     background: COLORS.input,
     color: COLORS.text,
     border: 'none',
     borderRadius: 6,
-    padding: '6px 12px',
+    padding: '8px 12px',
+    margin: 10,
     fontWeight: 'bold',
     fontSize: 16,
     cursor: 'pointer',
@@ -318,17 +305,15 @@ const styles: any = {
     display: 'flex',
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginBottom: 10,
     fontFamily: baseFont,
   },
   addPlayerSection: {
     background: 'rgba(81, 80, 83, 0.3)',
     padding: 10,
     borderRadius: 8,
-    marginBottom: 10,
+    margin: 10,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
     border: '1px solid rgba(255, 255, 255, 0.1)',
     fontFamily: baseFont,
     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)',
@@ -336,7 +321,7 @@ const styles: any = {
     zIndex: 1,
   },
   input: {
-    background: COLORS.input,
+    background: '#222',
     color: COLORS.text,
     padding: '10px',
     borderRadius: 4,
@@ -353,13 +338,13 @@ const styles: any = {
     marginBottom: 8,
     fontFamily: baseFont,
     position: 'relative',
-    zIndex: 2,
+    zIndex: 1,
   },
   genderButton: {
     flex: 1,
     padding: '10px',
     borderRadius: 4,
-    background: COLORS.input,
+    background: '#222',
     color: COLORS.text,
     border: 'none',
     fontWeight: 500,
@@ -367,7 +352,7 @@ const styles: any = {
     fontSize: 16,
     fontFamily: baseFont,
     position: 'relative',
-    zIndex: 3,
+    zIndex: 1,
     pointerEvents: 'auto',
   },
   genderButtonActiveOpen: {
@@ -377,7 +362,7 @@ const styles: any = {
     background: COLORS.women,
   },
   addButton: {
-    background: COLORS.scoreButtonPlus,
+    background: '#2ecc71',
     color: COLORS.text,
     padding: '10px',
     borderRadius: 4,
@@ -387,7 +372,7 @@ const styles: any = {
     cursor: 'pointer',
     fontFamily: baseFont,
     position: 'relative',
-    zIndex: 3,
+    zIndex: 1,
     pointerEvents: 'auto',
   },
   addButtonDisabled: {
@@ -397,15 +382,15 @@ const styles: any = {
   rostersSection: {
     display: 'flex',
     flexDirection: 'row',
-    gap: 10,
     width: '100%',
     justifyContent: 'space-between',
     fontFamily: baseFont,
+    position: 'relative',
+    zIndex: 1,
+    gap: 10,
   },
   rosterContainer: {
     background: 'rgba(81, 80, 83, 0.3)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
     padding: 10,
     borderRadius: 8,
     border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -416,6 +401,12 @@ const styles: any = {
     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)',
     position: 'relative',
     zIndex: 1,
+  },
+  rosterContainerFirst: {
+    marginLeft: 10,
+  },
+  rosterContainerSecond: {
+    marginRight: 10,
   },
   rosterTitle: {
     color: COLORS.text,
@@ -494,6 +485,7 @@ const styles: any = {
     background: '#4a90e2',
     padding: '6px 12px',
     borderRadius: 6,
+    margin: 10,
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,

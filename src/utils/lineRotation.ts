@@ -13,10 +13,10 @@ export function rotateQueue(queue: Player[], count: number): Player[] {
   return rotated;
 }
 
-export function getLine(openQueue: Player[], womanQueue: Player[], pattern: { men: number; women: number }): Player[] {
-  // Take the first N players from each queue based on the pattern
-  const men = openQueue.slice(0, pattern.men);
-  const women = womanQueue.slice(0, pattern.women);
+export function getLine(openQueue: Player[], womanQueue: Player[], pattern: { men: number; women: number }, openIndex: number = 0, womenIndex: number = 0): Player[] {
+  // Get the wrapped players from each queue based on the pattern
+  const men = getWrapped(openQueue, openIndex, pattern.men);
+  const women = getWrapped(womanQueue, womenIndex, pattern.women);
   
   // Debug logs
   console.log('getLine - Pattern:', pattern);
@@ -25,6 +25,17 @@ export function getLine(openQueue: Player[], womanQueue: Player[], pattern: { me
   
   // Return men first, then women
   return [...men, ...women];
+}
+
+// Helper function to get N players from a queue, wrapping if needed
+function getWrapped<T>(queue: T[], start: number, count: number): T[] {
+  if (queue.length === 0) return [];
+  const result = [];
+  for (let i = 0; i < count; i++) {
+    const index = (start + i) % queue.length;
+    result.push(queue[index]);
+  }
+  return result;
 }
 
 export function getNextLine(openQueue: Player[], womanQueue: Player[], lineIndex: number): Player[] {

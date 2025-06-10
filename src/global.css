@@ -6,8 +6,86 @@ html, body, #root {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
 }
 
 html, body {
   background: #1a1a1a !important;
+}
+
+/* Blob background */
+.blob {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  isolation: isolate;
+}
+
+.blob::before,
+.blob::after {
+  content: '';
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.6;
+  animation: blob-animation 20s infinite alternate;
+}
+
+.blob::before {
+  background: #4a90e2;
+  top: 0%;
+  left: 0%;
+  animation-delay: -5s;
+}
+
+.blob::after {
+  background: #e83e8c;
+  bottom: 40%;
+  right: 0%;
+  animation-delay: -10s;
+}
+
+.blob > div {
+  content: '';
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.5;
+  animation: blob-animation 20s infinite alternate;
+  background: #9b4dca;
+  top: 60%;
+  left: 40%;
+  transform: translate(-50%, -50%);
+  animation-delay: -15s;
+}
+
+/* Ensure content appears above blobs */
+#root > * {
+  position: relative;
+  z-index: 0;
+}
+
+@keyframes blob-animation {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(10px, 30px) scale(1.05);
+  }
 } 

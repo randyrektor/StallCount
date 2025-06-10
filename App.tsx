@@ -100,7 +100,6 @@ export default function App() {
   const [pendingPlayers, setPendingPlayers] = useState<Player[]>([]);
   const [lineIndex, setLineIndex] = useState(0);
   const [pointNumber, setPointNumber] = useState(1);
-  const [lineMode, setLineMode] = useState<'ABBA' | '4-3'>('ABBA');
   const [lineHistory, setLineHistory] = useState<LineState[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [gameStartTime, setGameStartTime] = useState<string>('18:45'); // 7:00pm default
@@ -474,6 +473,9 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <div className="blob">
+        <div />
+      </div>
       <SafeAreaView style={styles.container}>
         <GHScrollView
           ref={scrollViewRef}
@@ -544,9 +546,6 @@ export default function App() {
               onTeam2ScoreChange={handleTeam2ScoreChange}
               lineIndex={lineIndex}
               pointNumber={pointNumber}
-              lineMode={lineMode}
-              onPointNumberChange={handlePointNumberChange}
-              onLineIndexChange={handleLineIndexChange}
               onReset={handleReset}
               genderRatioMode={genderRatioMode}
               halftimeCountdown={halftimeCountdown}
