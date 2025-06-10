@@ -579,7 +579,7 @@ const styles = StyleSheet.create({
     width: 500,
     height: 500,
     backgroundColor: BLOB_COLORS.pink,
-    bottom: -100,
+    bottom: -50,
     right: -50,
     transform: [{ scale: 1.1 }],
   },
