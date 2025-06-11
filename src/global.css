@@ -24,10 +24,10 @@ html, body {
 /* Blob background */
 .blob {
   position: fixed;
-  top: 0;
+  top: -50vh; /* Extend beyond viewport */
   left: 0;
   width: 100%;
-  height: 100%;
+  height: 200vh; /* Double the height to extend beyond viewport */
   z-index: 0;
   pointer-events: none;
   mix-blend-mode: screen;
@@ -38,8 +38,8 @@ html, body {
 .blob::after {
   content: '';
   position: absolute;
-  width: 100vmax;
-  height: 100vmax;
+  width: 150vmax; /* Increased size */
+  height: 150vmax; /* Increased size */
   border-radius: 50%;
   filter: blur(100px);
   opacity: 0.6;
@@ -48,23 +48,23 @@ html, body {
 
 .blob::before {
   background: #4a90e2;
-  top: -50%;
-  left: -50%;
+  top: -25%;
+  left: -25%;
   animation-delay: -5s;
 }
 
 .blob::after {
   background: #e83e8c;
-  bottom: -50%;
-  right: -50%;
+  bottom: -25%;
+  right: -25%;
   animation-delay: -10s;
 }
 
 .blob > div {
   content: '';
   position: absolute;
-  width: 100vmax;
-  height: 100vmax;
+  width: 150vmax; /* Increased size */
+  height: 150vmax; /* Increased size */
   border-radius: 50%;
   filter: blur(100px);
   opacity: 0.5;
@@ -79,7 +79,7 @@ html, body {
 /* Ensure content appears above blobs */
 #root > * {
   position: relative;
-  z-index: 0;
+  z-index: 1;
 }
 
 @keyframes blob-animation {
@@ -105,13 +105,22 @@ html, body {
 
 /* Ensure the app container doesn't scroll horizontally */
 #root {
-  overflow-x: hidden !important;
-  position: relative;
-  width: 100%;
-  max-width: 100vw;
-  height: 100%;
-  overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .blob {
+    top: -100vh; /* Extend even further on mobile */
+    height: 300vh; /* Triple the height on mobile */
+  }
+
+  .blob::before,
+  .blob::after,
+  .blob > div {
+    width: 200vmax; /* Even larger blobs on mobile */
+    height: 200vmax;
+  }
 }
 
 /* Ensure all flex containers don't cause horizontal overflow */

@@ -6,6 +6,7 @@ import { GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native
 import { Player } from './src/types';
 import { PlayerManager } from './src/components/PlayerManager';
 import { ScoreBoard } from './src/components/ScoreBoard';
+import { SettingsModal } from './src/components/SettingsModal';
 import { rotateQueue, addPlayersToQueue, removePlayersFromQueue, getLine } from './src/utils/lineRotation';
 import { COLORS } from './src/constants';
 import './src/global.css';
@@ -89,7 +90,7 @@ interface ScoreEvent {
 
 export default function App() {
   const scrollViewRef = useRef<GHScrollView>(null);
-  const [team1Name] = useState('Disco Fever');
+  const [team1Name, setTeam1Name] = useState('Disco Fever');
   const [team2Name, setTeam2Name] = useState('Away');
   const [team1Score, setTeam1Score] = useState(0);
   const [team2Score, setTeam2Score] = useState(0);
@@ -523,6 +524,23 @@ export default function App() {
           />
         </View>
       </GHScrollView>
+      <SettingsModal
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        team1Name={team1Name}
+        team2Name={team2Name}
+        onTeam1NameChange={setTeam1Name}
+        onTeam2NameChange={setTeam2Name}
+        gameStartTime={gameStartTime}
+        halftimeTime={halftimeTime}
+        endTime={endTime}
+        onGameStartTimeChange={setGameStartTime}
+        onHalftimeTimeChange={setHalftimeTime}
+        onEndTimeChange={setEndTime}
+        genderRatioMode={genderRatioMode}
+        onGenderRatioModeChange={setGenderRatioMode}
+        onReset={handleReset}
+      />
     </GestureHandlerRootView>
   );
 }
