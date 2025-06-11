@@ -291,7 +291,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
-    paddingHorizontal: 8,
   },
   topBarMobile: {
     flexDirection: 'row',

@@ -7,10 +7,18 @@ html, body, #root {
   padding: 0;
   box-sizing: border-box;
   position: relative;
+  overflow-x: hidden !important;
+  width: 100%;
+  max-width: 100vw;
+  touch-action: none;
 }
 
 html, body {
   background: #1a1a1a !important;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Blob background */
@@ -87,4 +95,55 @@ html, body {
   100% {
     transform: translate(10px, 30px) scale(1.05);
   }
+}
+
+/* Prevent horizontal scrolling on all elements */
+* {
+  max-width: 100vw;
+  box-sizing: border-box;
+}
+
+/* Ensure the app container doesn't scroll horizontally */
+#root {
+  overflow-x: hidden !important;
+  position: relative;
+  width: 100%;
+  max-width: 100vw;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Ensure all flex containers don't cause horizontal overflow */
+.flex-container {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Ensure all grid containers don't cause horizontal overflow */
+.grid-container {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Ensure all draggable elements don't cause horizontal overflow */
+[data-draggable] {
+  max-width: 100%;
+  touch-action: none;
+}
+
+/* Ensure the main content area is scrollable vertically but not horizontally */
+.main-content {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure drag handles work properly */
+[data-dnd-draggable] {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 } 

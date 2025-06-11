@@ -1,6 +1,6 @@
 // ScoreboardApp.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, StyleSheet, SafeAreaView, Alert, Platform, Modal, Text, TextInput, Button, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, SafeAreaView, Alert, Platform, Modal, Text, TextInput, Button, TouchableOpacity, Dimensions } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { Player } from './src/types';
@@ -9,6 +9,8 @@ import { ScoreBoard } from './src/components/ScoreBoard';
 import { rotateQueue, addPlayersToQueue, removePlayersFromQueue, getLine } from './src/utils/lineRotation';
 import { COLORS } from './src/constants';
 import './src/global.css';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Simple UUID generator
 function generateUUID() {
@@ -472,107 +474,41 @@ export default function App() {
   }, [genderRatioMode]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <div className="blob">
-        <div />
-      </div>
-      <SafeAreaView style={styles.container}>
-        <GHScrollView
-          ref={scrollViewRef}
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-        >
-          <View style={styles.header}>
-            {/* Settings Modal */}
-            <Modal
-              visible={settingsVisible}
-              transparent={true}
-              animationType="fade"
-              onRequestClose={() => setSettingsVisible(false)}
-            >
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-                <View style={{ backgroundColor: '#222', padding: 24, borderRadius: 12, width: 320 }}>
-                  <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Game Settings</Text>
-                  <Text style={{ color: '#fff', marginBottom: 4 }}>Gender Ratio:</Text>
-                  <View style={{ flexDirection: 'row', marginBottom: 16, justifyContent: 'space-between' }}>
-                    <TouchableOpacity onPress={() => setGenderRatioMode('ABBA')} style={{ padding: 8 }}>
-                      <Text style={{ color: genderRatioMode === 'ABBA' ? '#4a90e2' : '#fff', fontWeight: 'bold' }}>ABBA</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setGenderRatioMode('4-3')} style={{ padding: 8 }}>
-                      <Text style={{ color: genderRatioMode === '4-3' ? '#4a90e2' : '#fff', fontWeight: 'bold' }}>4O/3W</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setGenderRatioMode('3-4')} style={{ padding: 8 }}>
-                      <Text style={{ color: genderRatioMode === '3-4' ? '#4a90e2' : '#fff', fontWeight: 'bold' }}>3O/4W</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={{ color: '#fff', marginBottom: 4 }}>Game Start Time (24h, e.g. 19:00):</Text>
-                  <TextInput
-                    style={{ backgroundColor: '#333', color: '#fff', padding: 8, borderRadius: 4, marginBottom: 12 }}
-                    value={gameStartTime}
-                    onChangeText={setGameStartTime}
-                    placeholder="19:00"
-                    placeholderTextColor="#888"
-                  />
-                  <Text style={{ color: '#fff', marginBottom: 4 }}>Halftime Time (24h, e.g. 19:30):</Text>
-                  <TextInput
-                    style={{ backgroundColor: '#333', color: '#fff', padding: 8, borderRadius: 4, marginBottom: 12 }}
-                    value={halftimeTime}
-                    onChangeText={setHalftimeTime}
-                    placeholder="19:30"
-                    placeholderTextColor="#888"
-                  />
-                  <Text style={{ color: '#fff', marginBottom: 4 }}>End Time (24h, e.g. 20:15):</Text>
-                  <TextInput
-                    style={{ backgroundColor: '#333', color: '#fff', padding: 8, borderRadius: 4, marginBottom: 20 }}
-                    value={endTime}
-                    onChangeText={setEndTime}
-                    placeholder="20:15"
-                    placeholderTextColor="#888"
-                  />
-                  <Button title="Done" onPress={() => setSettingsVisible(false)} />
-                  <View style={{ height: 16 }} />
-                  <Button title="Reset Score" color="#e74c3c" onPress={() => { handleReset(); setSettingsVisible(false); }} />
-                </View>
-              </View>
-            </Modal>
-          </View>
-          <View style={styles.content}>
-            <ScoreBoard
-              team1Name={team1Name}
-              team2Name={team2Name}
-              team1Score={team1Score}
-              team2Score={team2Score}
-              onTeam1ScoreChange={handleTeam1ScoreChange}
-              onTeam2ScoreChange={handleTeam2ScoreChange}
-              lineIndex={lineIndex}
-              pointNumber={pointNumber}
-              onReset={handleReset}
-              genderRatioMode={genderRatioMode}
-              halftimeCountdown={halftimeCountdown}
-              endCountdown={endCountdown}
-              setSettingsVisible={setSettingsVisible}
-              roster={roster}
-              openQueue={currentOpenQueue}
-              womanQueue={currentWomanQueue}
-              nextOpenQueue={nextOpenQueue}
-              nextWomanQueue={nextWomanQueue}
-              lineHistory={lineHistory}
-              scoreHistory={scoreHistory}
-              onLateArrival={handleLateArrival}
-              pendingPlayers={pendingPlayers}
-              gameStarted={gameStarted}
-            />
-            <View style={{ marginTop: 16 }} />
-            <PlayerManager
-              roster={roster}
-              onRosterChange={setRoster}
-              scrollViewRef={scrollViewRef}
-              onLateArrival={handleLateArrival}
-              pendingPlayers={pendingPlayers}
-            />
-          </View>
-        </GHScrollView>
-      </SafeAreaView>
+    <GestureHandlerRootView style={styles.container}>
+      <View style={styles.content}>
+        <ScoreBoard
+          team1Name={team1Name}
+          team2Name={team2Name}
+          team1Score={team1Score}
+          team2Score={team2Score}
+          onTeam1ScoreChange={handleTeam1ScoreChange}
+          onTeam2ScoreChange={handleTeam2ScoreChange}
+          lineIndex={lineIndex}
+          pointNumber={pointNumber}
+          onReset={handleReset}
+          genderRatioMode={genderRatioMode}
+          halftimeCountdown={halftimeCountdown}
+          endCountdown={endCountdown}
+          setSettingsVisible={setSettingsVisible}
+          roster={roster}
+          openQueue={getWrapped(masterOpenQueue, openIndex, getPattern(lineIndex).men)}
+          womanQueue={getWrapped(masterWomenQueue, womenIndex, getPattern(lineIndex).women)}
+          nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
+          nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
+          lineHistory={lineHistory}
+          scoreHistory={scoreHistory}
+          onLateArrival={handleLateArrival}
+          pendingPlayers={pendingPlayers}
+          gameStarted={gameStarted}
+        />
+        <PlayerManager
+          roster={roster}
+          onRosterChange={setRoster}
+          scrollViewRef={scrollViewRef}
+          onLateArrival={handleLateArrival}
+          pendingPlayers={pendingPlayers}
+        />
+      </View>
     </GestureHandlerRootView>
   );
 }
@@ -581,6 +517,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   scrollView: {
     flex: 1,
@@ -592,6 +536,9 @@ const styles = StyleSheet.create({
     // Add appropriate styles for the header
   },
   content: {
-    // Add appropriate styles for the content
+    flex: 1,
+    width: '100%',
+    overflow: 'hidden',
+    position: 'relative',
   },
 });

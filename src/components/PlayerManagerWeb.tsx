@@ -379,7 +379,6 @@ const styles: any = {
   },
   addButtonDisabled: {
     opacity: 0.5,
-    cursor: 'not-allowed',
   },
   rostersSection: {
     display: 'flex',
