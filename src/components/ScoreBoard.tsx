@@ -372,12 +372,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 20,
   },
-  scoreButtonPlus: {
-    backgroundColor: COLORS.scoreButtonPlus,
-  },
-  scoreButtonMinus: {
-    backgroundColor: COLORS.scoreButtonMinus,
-  },
   scoreButtonText: {
     color: COLORS.text,
     fontSize: 24,

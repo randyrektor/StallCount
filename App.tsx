@@ -1,6 +1,6 @@
 // ScoreboardApp.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, StyleSheet, SafeAreaView, Alert, Platform, Modal, Text, TextInput, Button, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, SafeAreaView, Alert, Platform, Modal, Text, TextInput, Button, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { Player } from './src/types';
@@ -475,40 +475,54 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <View style={styles.content}>
-        <ScoreBoard
-          team1Name={team1Name}
-          team2Name={team2Name}
-          team1Score={team1Score}
-          team2Score={team2Score}
-          onTeam1ScoreChange={handleTeam1ScoreChange}
-          onTeam2ScoreChange={handleTeam2ScoreChange}
-          lineIndex={lineIndex}
-          pointNumber={pointNumber}
-          onReset={handleReset}
-          genderRatioMode={genderRatioMode}
-          halftimeCountdown={halftimeCountdown}
-          endCountdown={endCountdown}
-          setSettingsVisible={setSettingsVisible}
-          roster={roster}
-          openQueue={getWrapped(masterOpenQueue, openIndex, getPattern(lineIndex).men)}
-          womanQueue={getWrapped(masterWomenQueue, womenIndex, getPattern(lineIndex).women)}
-          nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
-          nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
-          lineHistory={lineHistory}
-          scoreHistory={scoreHistory}
-          onLateArrival={handleLateArrival}
-          pendingPlayers={pendingPlayers}
-          gameStarted={gameStarted}
-        />
-        <PlayerManager
-          roster={roster}
-          onRosterChange={setRoster}
-          scrollViewRef={scrollViewRef}
-          onLateArrival={handleLateArrival}
-          pendingPlayers={pendingPlayers}
-        />
-      </View>
+      <GHScrollView 
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        horizontal={false}
+        showsVerticalScrollIndicator={true}
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={true}
+        directionalLockEnabled={true}
+        bounces={false}
+        alwaysBounceHorizontal={false}
+        alwaysBounceVertical={false}
+      >
+        <View style={styles.content}>
+          <ScoreBoard
+            team1Name={team1Name}
+            team2Name={team2Name}
+            team1Score={team1Score}
+            team2Score={team2Score}
+            onTeam1ScoreChange={handleTeam1ScoreChange}
+            onTeam2ScoreChange={handleTeam2ScoreChange}
+            lineIndex={lineIndex}
+            pointNumber={pointNumber}
+            onReset={handleReset}
+            genderRatioMode={genderRatioMode}
+            halftimeCountdown={halftimeCountdown}
+            endCountdown={endCountdown}
+            setSettingsVisible={setSettingsVisible}
+            roster={roster}
+            openQueue={getWrapped(masterOpenQueue, openIndex, getPattern(lineIndex).men)}
+            womanQueue={getWrapped(masterWomenQueue, womenIndex, getPattern(lineIndex).women)}
+            nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
+            nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
+            lineHistory={lineHistory}
+            scoreHistory={scoreHistory}
+            onLateArrival={handleLateArrival}
+            pendingPlayers={pendingPlayers}
+            gameStarted={gameStarted}
+          />
+          <PlayerManager
+            roster={roster}
+            onRosterChange={setRoster}
+            scrollViewRef={scrollViewRef}
+            onLateArrival={handleLateArrival}
+            pendingPlayers={pendingPlayers}
+          />
+        </View>
+      </GHScrollView>
     </GestureHandlerRootView>
   );
 }
@@ -528,17 +542,21 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    width: '100%',
+    overflow: 'hidden',
   },
   scrollViewContent: {
     flexGrow: 1,
-  },
-  header: {
-    // Add appropriate styles for the header
+    width: '100%',
+    overflow: 'hidden',
   },
   content: {
     flex: 1,
     width: '100%',
-    overflow: 'hidden',
     position: 'relative',
+    overflow: 'hidden',
+  },
+  header: {
+    // Add appropriate styles for the header
   },
 });

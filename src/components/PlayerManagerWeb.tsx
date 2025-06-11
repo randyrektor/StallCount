@@ -15,8 +15,8 @@ const COLORS = {
   women: '#e83e8c', // Modern pink
   openMuted: 'rgba(50, 74, 106, 0.3)',
   womenMuted: 'rgba(106, 50, 74, 0.3)',
-  scoreButtonMinus: '#e74c3c',
-  scoreButtonPlus: '#2ecc71',
+  delete: '#e74c3c',
+  add: '#2ecc71',
   border: '#404040',
   input: '#3d3d3d',
 };
@@ -364,7 +364,7 @@ const styles: any = {
     background: COLORS.women,
   },
   addButton: {
-    background: '#2ecc71',
+    background: COLORS.add,
     color: COLORS.text,
     padding: '10px',
     borderRadius: 4,
@@ -467,7 +467,7 @@ const styles: any = {
     width: 20,
     height: 20,
     borderRadius: 10,
-    background: COLORS.scoreButtonMinus,
+    background: COLORS.delete,
     color: COLORS.text,
     border: 'none',
     fontWeight: 'bold',
