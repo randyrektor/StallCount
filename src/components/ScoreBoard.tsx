@@ -296,6 +296,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 4,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
   },
   timersContainer: {
     flexDirection: 'row',
