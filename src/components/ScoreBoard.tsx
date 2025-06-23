@@ -192,6 +192,11 @@ export function ScoreBoard({
     </div>
   );
 
+  // Update styles for mobile fixes
+  const teamMinWidth = isMobile ? '48vw' : undefined;
+  const teamButtonMinWidth = isMobile ? '100px' : undefined;
+  const lineSectionMinWidth = isMobile ? '180px' : undefined;
+
   return (
     <div style={styles.container}>
       <div style={{ ...styles.topRow, marginBottom: isMobile ? '2.5px' : styles.topRow.marginBottom }}>
@@ -338,12 +343,15 @@ export function ScoreBoard({
         display: 'flex',
         flexDirection: 'row',
         flexWrap: 'nowrap',
-        overflowX: isMobile ? 'auto' : 'visible',
-        minWidth: isMobile ? 0 : undefined,
-        gap: isMobile ? '8px' : styles.lineDisplay.gap,
+        overflowX: 'auto',
         width: '100%',
+        gap: isMobile ? '8px' : styles.lineDisplay.gap,
       }}>
-        <div style={{ ...styles.lineSection, minWidth: isMobile ? '180px' : undefined }}>
+        <div style={{
+          ...styles.lineSection,
+          minWidth: lineSectionMinWidth,
+          flex: isMobile ? '0 0 auto' : styles.lineSection.flex,
+        }}>
           <h3 style={styles.lineTitle}>Current Line</h3>
           <div style={styles.playerListVertical}>
             {currentLine.map((player: Player) => (
@@ -353,7 +361,11 @@ export function ScoreBoard({
             ))}
           </div>
         </div>
-        <div style={{ ...styles.lineSection, minWidth: isMobile ? '180px' : undefined }}>
+        <div style={{
+          ...styles.lineSection,
+          minWidth: lineSectionMinWidth,
+          flex: isMobile ? '0 0 auto' : styles.lineSection.flex,
+        }}>
           <h3 style={styles.lineTitle}>Next Line</h3>
           <div style={styles.playerListVertical}>
             {nextLine.map((player: Player) => (
@@ -438,7 +450,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0, 
     fontSize: '45px', 
     fontWeight: 'bold', 
-    color: COLORS.text 
+    color: COLORS.text,
   },
   scoreDiff: { 
     fontSize: '22px', 
