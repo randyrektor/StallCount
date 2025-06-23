@@ -219,7 +219,7 @@ export function ScoreBoard({
     alignItems: 'center',
     minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
     padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
-    background: undefined,
+    background: 'rgba(255,255,255,0.05)',
   };
   const scoreDiffStyle = {
     ...styles.scoreDiff,
