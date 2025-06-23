@@ -3,7 +3,7 @@ import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSe
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Player } from '../types';
-import { commonStyles } from '../styles/common';
+import { commonStyles, playerCardStyle } from '../styles/common';
 
 // Modern color palette (matching ScoreBoard)
 const COLORS = {
@@ -33,40 +33,42 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending }: any)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
 
   return (
-    <div style={styles.playerRow}>
-      <span style={styles.numberSlot}>{index + 1}</span>
-      <div
-        ref={setNodeRef}
+    <div
+      ref={setNodeRef}
+      style={{
+        ...playerCardStyle,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: player.gender === 'O'
+          ? (isPending ? 'rgba(74,144,226,0.3)' : '#4a90e2')
+          : (isPending ? 'rgba(232,62,140,0.3)' : '#e83e8c'),
+        marginBottom: '6px',
+        position: 'relative',
+        opacity: isDragging ? 0.8 : 1,
+        transform: CSS.Transform.toString(transform),
+        transition,
+        touchAction: 'none',
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      <span style={{ color: COLORS.textSecondary, width: 24, textAlign: 'center' }}>{index + 1}</span>
+      <span style={{ flex: 1, color: '#fff', fontWeight: 500, textAlign: 'left', paddingLeft: 8 }}>{player.name}</span>
+      {isPending && <span style={styles.pendingBadge}>Pending</span>}
+      <button
         style={{
-          ...styles.playerItem,
-          background: player.gender === 'O' 
-            ? (isPending ? 'rgba(74,144,226,0.3)' : '#4a90e2')
-            : (isPending ? 'rgba(232,62,140,0.3)' : '#e83e8c'),
-          touchAction: 'none',
-          opacity: isDragging ? 0.8 : 1,
-          transform: CSS.Transform.toString(transform),
-          transition,
-          position: 'relative',
+          ...styles.deleteButton,
+          opacity: isEditMode ? 1 : 0,
+          pointerEvents: isEditMode ? 'auto' : 'none',
+          transition: 'opacity 0.2s',
         }}
-        {...attributes}
-        {...listeners}
+        onClick={() => onDelete(player)}
+        tabIndex={isEditMode ? 0 : -1}
+        aria-label="Remove player"
       >
-        <span style={styles.playerName}>{player.name}</span>
-        {isPending && <span style={styles.pendingBadge}>Pending</span>}
-        <button
-          style={{
-            ...styles.deleteButton,
-            opacity: isEditMode ? 1 : 0,
-            pointerEvents: isEditMode ? 'auto' : 'none',
-            transition: 'opacity 0.2s',
-          }}
-          onClick={() => onDelete(player)}
-          tabIndex={isEditMode ? 0 : -1}
-          aria-label="Remove player"
-        >
-          ×
-        </button>
-      </div>
+        ×
+      </button>
     </div>
   );
 }
@@ -325,20 +327,17 @@ const styles: Record<string, React.CSSProperties> = {
   },
   playerItem: {
     flex: 1,
-    padding: '12px',
-    borderRadius: '6px',
-    color: COLORS.text,
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     cursor: 'grab',
   },
-  playerName: { fontWeight: '500' },
+  playerName: {},
   pendingBadge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     padding: '2px 6px',
     borderRadius: '4px',
-    fontSize: '10px'
+    fontSize: '10.5px'
   },
   deleteButton: {
     backgroundColor: COLORS.delete,
@@ -374,7 +373,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',
-    marginBottom: '24px',
+    marginBottom: '12px',
     alignItems: 'stretch',
     marginTop: '8px',
   },
