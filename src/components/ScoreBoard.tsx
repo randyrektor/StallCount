@@ -231,6 +231,42 @@ export function ScoreBoard({
     gap: isMobile ? '8px' : styles.lineDisplay.gap,
   };
 
+  // Add overlay style for flash effect
+  const flashOverlayStyle = {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    borderRadius: '11px',
+    pointerEvents: 'none' as const,
+    zIndex: 0,
+    backgroundColor: 'rgba(46, 204, 113, 0.4)', // green
+    border: '2px solid rgba(46, 204, 113, 0.9)',
+    boxShadow: '0 0 20px rgba(46, 204, 113, 0.7)',
+    animation: 'scoreFlashOverlay 0.3s ease-out',
+  };
+
+  // Add keyframes for overlay flash (inject if not present)
+  if (typeof document !== 'undefined' && !document.getElementById('score-flash-overlay-keyframes')) {
+    const style = document.createElement('style');
+    style.id = 'score-flash-overlay-keyframes';
+    style.textContent = `
+      @keyframes scoreFlashOverlay {
+        0% {
+          opacity: 0;
+        }
+        40% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   return (
     <div style={styles.container}>
       <div style={{ ...styles.topRow, marginBottom: isMobile ? '2.5px' : styles.topRow.marginBottom }}>
@@ -284,36 +320,38 @@ export function ScoreBoard({
         {/* Only the team scores row is forced side by side */}
         <div style={teamScoresRowStyle}>
           <button
-            style={{
-              ...teamScoreButtonStyle,
-              animation: flashTeam1 ? 'scoreFlash 0.3s ease-out' : undefined,
-            }}
+            style={teamScoreButtonStyle}
             data-team="team1"
             onClick={() => handleScoreClick('team1')}
           >
+            {/* Flash overlay for team 1 */}
+            {flashTeam1 && <div style={flashOverlayStyle}></div>}
             <h2 style={{
               ...styles.teamName,
               fontSize: isMobile ? '15px' : styles.teamName.fontSize,
               marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
+              position: 'relative',
+              zIndex: 1,
             }}>{team1Name}</h2>
-            <h1 style={scoreStyle}>{team1Score}</h1>
+            <h1 style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team1Score}</h1>
           </button>
           {/* Score diff always visible and styled */}
           <div style={scoreDiffStyle}>{scoreDiff !== 0 ? scoreDiff : '0'}</div>
           <button
-            style={{
-              ...teamScoreButtonStyle,
-              animation: flashTeam2 ? 'scoreFlash 0.3s ease-out' : undefined,
-            }}
+            style={teamScoreButtonStyle}
             data-team="team2"
             onClick={() => handleScoreClick('team2')}
           >
+            {/* Flash overlay for team 2 */}
+            {flashTeam2 && <div style={flashOverlayStyle}></div>}
             <h2 style={{
               ...styles.teamName,
               fontSize: isMobile ? '15px' : styles.teamName.fontSize,
               marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
+              position: 'relative',
+              zIndex: 1,
             }}>{team2Name}</h2>
-            <h1 style={scoreStyle}>{team2Score}</h1>
+            <h1 style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team2Score}</h1>
           </button>
         </div>
       </div>

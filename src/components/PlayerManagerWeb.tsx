@@ -304,17 +304,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   rosterContainer: {
     display: 'flex',
-    gap: '20px'
+    gap: '12px'
   },
   rosterColumn: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    padding: '15px',
-    borderRadius: '8px',
   },
   rosterTitle: {
     color: COLORS.text,
-    marginBottom: '15px'
+    marginBottom: '10px'
   },
   playerRow: {
     display: 'flex',
