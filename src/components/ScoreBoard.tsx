@@ -178,12 +178,13 @@ export function ScoreBoard({
 
   // Robust mobile/desktop layout fixes
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 600;
+  // Remove debug border from player columns
   const lineSectionStyle = {
     ...styles.lineSection,
     minWidth: isMobile ? '180px' : '300px',
     flexShrink: 0,
     flex: isMobile ? '0 0 auto' : styles.lineSection.flex,
-    border: '2px solid #4a90e2', // debug border, remove if not needed
+    // border: '2px solid #4a90e2', // removed debug border
   };
   const scoreStyle = {
     ...styles.score,
@@ -196,6 +197,27 @@ export function ScoreBoard({
     background: '#333',
     borderRadius: '6px',
     padding: '8px 0',
+  };
+
+  // Force team scores side by side always
+  const teamScoresRowStyle = {
+    display: 'flex',
+    flexDirection: 'row' as const,
+    flexWrap: 'nowrap' as const,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    width: '100%',
+    gap: isMobile ? '10px' : styles.scoreContainer.gap,
+  };
+  const teamScoreButtonStyle = {
+    ...styles.teamDisplay,
+    flex: 1,
+    minWidth: isMobile ? '120px' : '180px',
+    maxWidth: '300px',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
+    padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
   };
 
   return (
@@ -248,22 +270,10 @@ export function ScoreBoard({
           padding: isMobile ? '6px' : styles.topBar.padding,
         }}
       >
-        <div
-          style={{
-            ...styles.scoreContainer,
-            flexDirection: isMobile ? 'column' : 'row',
-            gap: isMobile ? '10px' : styles.scoreContainer.gap,
-            alignItems: isMobile ? 'stretch' : 'center',
-          }}
-        >
+        {/* Only the team scores row is forced side by side */}
+        <div style={teamScoresRowStyle}>
           <button
-            style={{
-              ...styles.teamDisplay,
-              flexDirection: 'column',
-              alignItems: 'center',
-              minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
-              padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
-            }}
+            style={teamScoreButtonStyle}
             data-team="team1"
             onClick={() => handleScoreClick('team1')}
           >
@@ -295,13 +305,7 @@ export function ScoreBoard({
             </div>
           )}
           <button
-            style={{
-              ...styles.teamDisplay,
-              flexDirection: 'column',
-              alignItems: 'center',
-              minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
-              padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
-            }}
+            style={teamScoreButtonStyle}
             data-team="team2"
             onClick={() => handleScoreClick('team2')}
           >
