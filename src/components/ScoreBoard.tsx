@@ -120,6 +120,8 @@ export function ScoreBoard({
 }: ScoreBoardProps) {
   const patternIndex = lineIndex % 4;
   const [isAnimating, setIsAnimating] = useState(false);
+  const [flashTeam1, setFlashTeam1] = useState(false);
+  const [flashTeam2, setFlashTeam2] = useState(false);
 
   openQueue = openQueue || [];
   womanQueue = womanQueue || [];
@@ -148,17 +150,20 @@ export function ScoreBoard({
   const scoreDiff = team1Score - team2Score;
 
   const handleScoreClick = (team: 'team1' | 'team2') => {
-    // Prevent spam clicking
     if (isAnimating) return;
     setIsAnimating(true);
+    if (team === 'team1') {
+      setFlashTeam1(true);
+      onTeam1ScoreChange(team1Score + 1);
+      setTimeout(() => setFlashTeam1(false), 300);
+    } else {
+      setFlashTeam2(true);
+      onTeam2ScoreChange(team2Score + 1);
+      setTimeout(() => setFlashTeam2(false), 300);
+    }
     setTimeout(() => {
       setIsAnimating(false);
     }, 300);
-    if (team === 'team1') {
-      onTeam1ScoreChange(team1Score + 1);
-    } else {
-      onTeam2ScoreChange(team2Score + 1);
-    }
   };
 
   // Robust mobile/desktop layout fixes
@@ -288,7 +293,12 @@ export function ScoreBoard({
               fontSize: isMobile ? '15px' : styles.teamName.fontSize,
               marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
             }}>{team1Name}</h2>
-            <h1 style={scoreStyle}>{team1Score}</h1>
+            <h1
+              style={{
+                ...scoreStyle,
+                animation: flashTeam1 ? 'scoreFlash 0.3s ease-out' : undefined,
+              }}
+            >{team1Score}</h1>
           </button>
           {/* Score diff always visible and styled */}
           <div style={scoreDiffStyle}>{scoreDiff !== 0 ? scoreDiff : '0'}</div>
@@ -302,7 +312,12 @@ export function ScoreBoard({
               fontSize: isMobile ? '15px' : styles.teamName.fontSize,
               marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
             }}>{team2Name}</h2>
-            <h1 style={scoreStyle}>{team2Score}</h1>
+            <h1
+              style={{
+                ...scoreStyle,
+                animation: flashTeam2 ? 'scoreFlash 0.3s ease-out' : undefined,
+              }}
+            >{team2Score}</h1>
           </button>
         </div>
       </div>
