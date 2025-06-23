@@ -335,11 +335,13 @@ export function ScoreBoard({
       </div>
       {/* Team columns always side by side, allow horizontal scroll on mobile */}
       <div style={{
-        ...styles.lineDisplay,
+        display: 'flex',
+        flexDirection: 'row',
         flexWrap: 'nowrap',
         overflowX: isMobile ? 'auto' : 'visible',
         minWidth: isMobile ? 0 : undefined,
         gap: isMobile ? '8px' : styles.lineDisplay.gap,
+        width: '100%',
       }}>
         <div style={{ ...styles.lineSection, minWidth: isMobile ? '180px' : undefined }}>
           <h3 style={styles.lineTitle}>Current Line</h3>
