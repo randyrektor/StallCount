@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -33,11 +33,7 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending }: any)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
 
   return (
-    <div
-      style={{
-        ...styles.playerRow,
-      }}
-    >
+    <div style={styles.playerRow}>
       <span style={styles.numberSlot}>{index + 1}</span>
       <div
         ref={setNodeRef}
@@ -56,27 +52,32 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending }: any)
         {...listeners}
       >
         <span style={styles.playerName}>{player.name}</span>
-        {isPending && (
-          <span style={styles.pendingBadge}>Pending</span>
-        )}
-        {isEditMode && (
-          <button
-            style={styles.deleteButton}
-            onClick={() => onDelete(player)}
-          >
-            ×
-          </button>
-        )}
+        {isPending && <span style={styles.pendingBadge}>Pending</span>}
+        <button
+          style={{
+            ...styles.deleteButton,
+            opacity: isEditMode ? 1 : 0,
+            pointerEvents: isEditMode ? 'auto' : 'none',
+            transition: 'opacity 0.2s',
+          }}
+          onClick={() => onDelete(player)}
+          tabIndex={isEditMode ? 0 : -1}
+          aria-label="Remove player"
+        >
+          ×
+        </button>
       </div>
     </div>
   );
 }
 
 export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendingPlayers }: PlayerManagerWebProps) {
-  const [isVisible, setIsVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [newPlayer, setNewPlayer] = useState<{ name: string; gender: 'O' | 'W' }>({ name: '', gender: 'O' });
   const inputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { delay: 100, tolerance: 10 } }),
@@ -91,59 +92,56 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
   const pendingOpenPlayers = useMemo(() => pendingPlayers.filter(p => p.gender === 'O'), [pendingPlayers]);
   const pendingWomenPlayers = useMemo(() => pendingPlayers.filter(p => p.gender === 'W'), [pendingPlayers]);
 
+  // Measure content height when component mounts or content changes
+  useEffect(() => {
+    if (contentRef.current) {
+      setContentHeight(contentRef.current.scrollHeight);
+    }
+  }, [roster, pendingPlayers, isEditMode]);
+
   // Consolidated drag end handler
   function handleDragEnd(event: any, gender: 'O' | 'W') {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const updated = [...roster]; // Copy the full current roster
+    const group = gender === 'O' ? openPlayers : womenPlayers;
+    const oldIndex = group.findIndex(p => p.uuid === active.id);
+    const newIndex = group.findIndex(p => p.uuid === over.id);
+    const reorderedGroup = arrayMove(group, oldIndex, newIndex);
 
-    // Filter by gender
-    const groupPlayers = updated.filter(p => p.gender === gender);
-    const otherPlayers = updated.filter(p => p.gender !== gender);
+    const otherGroup = gender === 'O' ? womenPlayers : openPlayers;
+    const newRoster = gender === 'O' ? [...reorderedGroup, ...otherGroup] : [...otherGroup, ...reorderedGroup];
 
-    const oldIndex = groupPlayers.findIndex(p => p.uuid === active.id);
-    const newIndex = groupPlayers.findIndex(p => p.uuid === over.id);
-
-    const reordered = arrayMove(groupPlayers, oldIndex, newIndex);
-
-    // Combine reordered group with preserved other group (maintaining order)
-    const newRoster =
-      gender === 'O' ? [...reordered, ...otherPlayers] : [...otherPlayers, ...reordered];
-
-    // Update both roster and master queues
-    onRosterChange(newRoster);
+    onRosterChange(assignNumbers(newRoster));
   }
 
-  function handleDeletePlayer(player: Player) {
-    // Simply remove the player without reassigning numbers
-    onRosterChange(roster.filter(p => p.uuid !== player.uuid));
+  function handleDeletePlayer(playerToDelete: Player) {
+    // Remove the player from the roster
+    const newRoster = roster.filter(p => p.uuid !== playerToDelete.uuid);
+    
+    // Reassign numbers to maintain proper ordering
+    const renumberedRoster = assignNumbers(newRoster);
+    
+    // Update the roster through the parent component
+    onRosterChange(renumberedRoster);
   }
 
   function assignNumbers(players: Player[]) {
     let openCount = 1;
     let womenCount = 1;
-    return players.map(player => {
-      if (player.gender === 'O') {
-        return { ...player, number: openCount++ };
-      } else {
-        return { ...player, number: womenCount++ };
-      }
-    });
-  }
-
-  function handleGenderChange(gender: 'O' | 'W') {
-    setNewPlayer(prev => ({ ...prev, gender }));
+    return players.map(player => ({
+      ...player,
+      number: player.gender === 'O' ? openCount++ : womenCount++,
+    }));
   }
 
   function handleAddPlayer() {
     if (newPlayer.name.trim()) {
       const newPlayerWithNumber = {
         ...newPlayer,
-        number: newPlayer.gender === 'O' ? openPlayers.length + 1 : womenPlayers.length + 1,
-        uuid: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now()),
+        uuid: crypto.randomUUID(),
+        number: 0, 
       };
-
       onLateArrival(newPlayerWithNumber);
       setNewPlayer({ name: '', gender: 'O' });
       inputRef.current?.focus();
@@ -152,363 +150,270 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
 
   return (
     <div style={styles.container}>
-      <div style={styles.topBar}>
-        <button style={styles.hideButton} onClick={() => setIsVisible(!isVisible)}>
+      <div style={styles.buttonRow}>
+        <button style={styles.toggleButton} onClick={() => setIsVisible(!isVisible)}>
           {isVisible ? 'Hide Player Manager' : 'Show Player Manager'}
         </button>
-        {isVisible && (
-          <>
+      </div>
+
+      <div 
+        style={{
+          ...styles.managerWrapper,
+          height: isVisible ? contentHeight : 0,
+          opacity: isVisible ? 1 : 0,
+        }}
+      >
+        <div ref={contentRef} style={styles.managerContent}>
+          {/* Edit and gender row */}
+          <div style={styles.editGenderRow}>
+            <div style={styles.genderRow}>
+              <button
+                style={{ ...styles.genderButton, ...(newPlayer.gender === 'O' ? styles.genderButtonActiveOpen : {}) }}
+                onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'O' }))}
+              >
+                Open
+              </button>
+              <button
+                style={{ ...styles.genderButton, ...(newPlayer.gender === 'W' ? styles.genderButtonActiveWomen : {}) }}
+                onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'W' }))}
+              >
+                Women
+              </button>
+            </div>
             <div style={{ flex: 1 }} />
-            <button
-              style={{ ...styles.toggleButton, ...(isEditMode ? styles.toggleButtonActive : {}) }}
+            <button 
+              style={{ ...styles.actionButton, ...styles.editButton, ...(isEditMode ? styles.editModeActive : {}) }} 
               onClick={() => setIsEditMode(!isEditMode)}
             >
               {isEditMode ? 'Done' : 'Edit'}
             </button>
-          </>
-        )}
-      </div>
-      {isVisible && (
-        <>
-          <div style={styles.addPlayerSection}>
+          </div>
+
+          {/* Add player controls, new layout */}
+          <div style={styles.addPlayerSectionModern}>
             <input
               ref={inputRef}
               style={styles.input}
               value={newPlayer.name}
               onChange={e => setNewPlayer(prev => ({ ...prev, name: e.target.value }))}
+              onKeyPress={(e) => e.key === 'Enter' && handleAddPlayer()}
               placeholder="New player name"
             />
-            <div style={styles.genderButtons}>
-              <button
-                style={{
-                  ...styles.genderButton,
-                  ...(newPlayer.gender === 'O' ? styles.genderButtonActiveOpen : {}),
-                }}
-                onClick={() => handleGenderChange('O')}
-              >
-                Open
-              </button>
-              <button
-                style={{
-                  ...styles.genderButton,
-                  ...(newPlayer.gender === 'W' ? styles.genderButtonActiveWomen : {}),
-                }}
-                onClick={() => handleGenderChange('W')}
-              >
-                Women
-              </button>
-            </div>
-            <button
-              style={{
-                ...styles.addButton,
-                ...(newPlayer.name.trim() ? {} : styles.addButtonDisabled),
-              }}
-              onClick={handleAddPlayer}
-              disabled={!newPlayer.name.trim()}
-            >
+            <button style={styles.addPlayerButton} onClick={handleAddPlayer}>
               Add Player
             </button>
           </div>
-          <div style={styles.rostersSection}>
-            {/* Open Section */}
-            <div style={{ ...styles.rosterContainer, ...styles.rosterContainerFirst }}>
-              <div style={styles.rosterTitle}>Open</div>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'O')}>
+
+          <div style={styles.rosterContainer}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'O')}>
+              <div style={styles.rosterColumn}>
+                <h3 style={styles.rosterTitle}>Open Players</h3>
                 <SortableContext items={openPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
-                  {openPlayers.map((player, idx) => (
-                    <SortablePlayer
-                      key={player.uuid}
-                      player={player}
-                      index={idx}
-                      isEditMode={isEditMode}
-                      onDelete={handleDeletePlayer}
-                      isPending={pendingPlayers.some(p => p.uuid === player.uuid)}
-                    />
+                  {openPlayers.map((player, index) => (
+                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingOpenPlayers.some(p => p.uuid === player.uuid)} />
                   ))}
                 </SortableContext>
-              </DndContext>
-              {/* Show pending open players */}
-              {pendingOpenPlayers.map((player, idx) => (
-                <div key={player.uuid} style={styles.playerRow}>
-                  <span style={styles.numberSlot}>P</span>
-                  <div style={{
-                    ...styles.playerItem,
-                    background: COLORS.openMuted,
-                    opacity: 0.7,
-                  }}>
-                    <span style={styles.playerName}>{player.name}</span>
-                    <span style={styles.pendingBadge}>Pending</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {/* Women Section */}
-            <div style={{ ...styles.rosterContainer, ...styles.rosterContainerSecond }}>
-              <div style={styles.rosterTitle}>Women</div>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'W')}>
+              </div>
+            </DndContext>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'W')}>
+              <div style={styles.rosterColumn}>
+                <h3 style={styles.rosterTitle}>Women Players</h3>
                 <SortableContext items={womenPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
-                  {womenPlayers.map((player, idx) => (
-                    <SortablePlayer
-                      key={player.uuid}
-                      player={player}
-                      index={idx}
-                      isEditMode={isEditMode}
-                      onDelete={handleDeletePlayer}
-                      isPending={pendingPlayers.some(p => p.uuid === player.uuid)}
-                    />
+                  {womenPlayers.map((player, index) => (
+                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingWomenPlayers.some(p => p.uuid === player.uuid)} />
                   ))}
                 </SortableContext>
-              </DndContext>
-              {/* Show pending women players */}
-              {pendingWomenPlayers.map((player, idx) => (
-                <div key={player.uuid} style={styles.playerRow}>
-                  <span style={styles.numberSlot}>P</span>
-                  <div style={{
-                    ...styles.playerItem,
-                    background: COLORS.womenMuted,
-                    opacity: 0.7,
-                  }}>
-                    <span style={styles.playerName}>{player.name}</span>
-                    <span style={styles.pendingBadge}>Pending</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+              </div>
+            </DndContext>
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
 
 const baseFont = 'system-ui, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
 
-const styles: any = {
-  topBar: {
-    display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-    zIndex: 1,
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    padding: '20px',
+    textAlign: 'center'
   },
-  hideButton: {
-    background: COLORS.input,
-    color: COLORS.text,
-    border: 'none',
-    borderRadius: 6,
-    padding: '8px 12px',
-    margin: 10,
-    fontWeight: 'bold',
-    fontSize: 16,
-    cursor: 'pointer',
-    fontFamily: baseFont,
+  managerWrapper: {
+    overflow: 'hidden',
+    transition: 'height 0.3s ease-in-out, opacity 0.3s ease-in-out',
   },
-  header: {
-    display: 'flex',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    fontFamily: baseFont,
+  managerContent: {
+    backgroundColor: 'rgba(45, 45, 45, 0.8)',
+    borderRadius: '12px',
+    padding: '20px',
   },
   addPlayerSection: {
-    background: 'rgba(81, 80, 83, 0.3)',
-    padding: 10,
-    borderRadius: 8,
-    margin: 10,
     display: 'flex',
-    flexDirection: 'column',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    fontFamily: baseFont,
-    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)',
-    position: 'relative',
-    zIndex: 1,
+    gap: '10px',
+    marginBottom: '20px',
+    alignItems: 'center'
   },
   input: {
-    background: '#222',
-    color: COLORS.text,
-    padding: '10px',
-    borderRadius: 4,
-    border: 'none',
-    marginBottom: 8,
-    fontSize: 16,
-    outline: 'none',
-    fontFamily: baseFont,
-  },
-  genderButtons: {
-    display: 'flex',
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-    fontFamily: baseFont,
-    position: 'relative',
-    zIndex: 1,
-  },
-  genderButton: {
     flex: 1,
-    padding: '10px',
-    borderRadius: 4,
-    background: '#222',
+    padding: '10px 12px',
+    backgroundColor: COLORS.input,
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: '6px',
     color: COLORS.text,
-    border: 'none',
-    fontWeight: 500,
-    cursor: 'pointer',
-    fontSize: 16,
-    fontFamily: baseFont,
-    position: 'relative',
-    zIndex: 1,
-    pointerEvents: 'auto',
+    fontSize: '14px'
   },
-  genderButtonActiveOpen: {
-    background: COLORS.open,
+  genderButtons: { display: 'flex', gap: '5px' },
+  genderButton: {
+    padding: '8px 16px',
+    border: '.5px solid #fff',
+    borderRadius: '6px',
+    backgroundColor: 'transparent',
+    color: COLORS.textSecondary,
+    cursor: 'pointer'
   },
-  genderButtonActiveWomen: {
-    background: COLORS.women,
-  },
+  genderButtonActiveOpen: { backgroundColor: COLORS.open, color: COLORS.text, border: '.5px solid #fff' },
+  genderButtonActiveWomen: { backgroundColor: COLORS.women, color: COLORS.text, border: '.5px solid #fff' },
   addButton: {
-    background: COLORS.add,
+    padding: '10px 20px',
+    backgroundColor: COLORS.add,
     color: COLORS.text,
-    padding: '10px',
-    borderRadius: 4,
     border: 'none',
-    fontWeight: 'bold',
-    fontSize: 16,
-    cursor: 'pointer',
-    fontFamily: baseFont,
-    position: 'relative',
-    zIndex: 1,
-    pointerEvents: 'auto',
+    borderRadius: '6px',
+    cursor: 'pointer'
   },
-  addButtonDisabled: {
-    opacity: 0.5,
-  },
-  rostersSection: {
+  actionButtonsRow: {
     display: 'flex',
-    flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-between',
-    fontFamily: baseFont,
-    position: 'relative',
-    zIndex: 1,
-    gap: 10,
+    gap: '8px',
+    alignItems: 'center',
+  },
+  actionButton: {
+    padding: '10px 20px',
+    borderRadius: '6px',
+    fontWeight: '600',
+    fontSize: '14px',
+    border: 'none',
+    cursor: 'pointer',
+    backgroundColor: COLORS.add,
+    color: COLORS.text,
+    transition: 'background 0.2s',
+  },
+  editButton: {
+    backgroundColor: COLORS.delete,
+    color: '#fff',
   },
   rosterContainer: {
-    background: 'rgba(81, 80, 83, 0.3)',
-    padding: 10,
-    borderRadius: 8,
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    display: 'flex',
+    gap: '20px'
+  },
+  rosterColumn: {
     flex: 1,
-    minWidth: 0,
-    overflow: 'visible',
-    fontFamily: baseFont,
-    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)',
-    position: 'relative',
-    zIndex: 1,
-  },
-  rosterContainerFirst: {
-    marginLeft: 10,
-  },
-  rosterContainerSecond: {
-    marginRight: 10,
+    backgroundColor: COLORS.background,
+    padding: '15px',
+    borderRadius: '8px',
   },
   rosterTitle: {
     color: COLORS.text,
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-    fontFamily: baseFont,
+    marginBottom: '15px'
   },
   playerRow: {
     display: 'flex',
-    flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 10,
-    fontFamily: baseFont,
+    gap: '10px',
+    marginBottom: '10px',
   },
   numberSlot: {
-    width: 32,
     color: COLORS.textSecondary,
-    fontWeight: 'bold',
-    fontSize: 14,
-    textAlign: 'center',
-    marginRight: 12,
-    userSelect: 'none',
-    fontFamily: baseFont,
+    width: '20px'
   },
   playerItem: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    width: '100%',
-    minWidth: 90,
-    padding: '6px 12px',
-    borderRadius: 4,
-    marginBottom: 8,
-    cursor: 'grab',
-    transition: 'all 0.3s ease',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    position: 'relative',
-    boxShadow: '0 2px 15px rgba(0, 0, 0, 0.2)',
-  },
-  playerName: {
-    color: COLORS.text,
-    fontWeight: 'bold',
-    fontSize: 14,
-    textAlign: 'center',
-    fontFamily: baseFont,
     flex: 1,
-    letterSpacing: 0.5,
-    userSelect: 'none',
+    padding: '12px',
+    borderRadius: '6px',
+    color: COLORS.text,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    cursor: 'grab',
+  },
+  playerName: { fontWeight: '500' },
+  pendingBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    fontSize: '10px'
   },
   deleteButton: {
-    position: 'absolute',
-    right: 8,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    background: COLORS.delete,
-    color: COLORS.text,
+    backgroundColor: COLORS.delete,
+    color: 'white',
     border: 'none',
-    fontWeight: 'bold',
+    borderRadius: '50%',
+    width: '20px',
+    height: '20px',
     cursor: 'pointer',
-    zIndex: 10,
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 14,
-    lineHeight: '20px',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-    fontFamily: baseFont,
-    padding: 0,
+    justifyContent: 'center'
+  },
+  editModeActive: {
+    backgroundColor: COLORS.delete,
+    color: COLORS.text,
+    borderColor: COLORS.delete
+  },
+  addPlayerSectionNew: {
+    display: 'flex',
+    gap: '10px',
+    marginBottom: '24px',
+    alignItems: 'center',
+    marginTop: '8px',
+  },
+  editRow: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: '8px',
+  },
+  addPlayerSectionModern: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    marginBottom: '24px',
+    alignItems: 'stretch',
+    marginTop: '8px',
+  },
+  genderRow: {
+    display: 'flex',
+    gap: '10px',
+    width: '100%',
+  },
+  addPlayerButton: {
+    width: '100%',
+    padding: '12px 0',
+    backgroundColor: COLORS.add,
+    color: COLORS.text,
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: '600',
+    fontSize: '16px',
+    cursor: 'pointer',
+    marginTop: '2px',
+    transition: 'background 0.2s',
+  },
+  editGenderRow: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: '8px',
+  },
+  buttonRow: {
+    marginBottom: '20px',
   },
   toggleButton: {
-    background: '#4a90e2',
-    padding: '6px 12px',
-    borderRadius: 6,
-    margin: 10,
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
+    padding: '10px 20px',
+    backgroundColor: COLORS.add,
+    color: COLORS.text,
     border: 'none',
+    borderRadius: '6px',
     cursor: 'pointer',
-    fontFamily: baseFont,
-  },
-  toggleButtonActive: {
-    background: '#e74c3c',
-  },
-  lateArrivalToggle: {
-    marginBottom: 12,
-  },
-  pendingBadge: {
-    position: 'absolute',
-    right: 8,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    background: 'rgba(0,0,0,0.2)',
-    padding: '2px 6px',
-    borderRadius: 4,
-    fontSize: 12,
-    color: COLORS.textSecondary,
   },
 }; 

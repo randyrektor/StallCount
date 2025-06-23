@@ -1,8 +1,5 @@
 // ScoreboardApp.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, StyleSheet, SafeAreaView, Alert, Platform, Modal, Text, TextInput, Button, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
-import * as ScreenOrientation from 'expo-screen-orientation';
-import { GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { Player } from './src/types';
 import { PlayerManager } from './src/components/PlayerManager';
 import { ScoreBoard } from './src/components/ScoreBoard';
@@ -10,8 +7,7 @@ import { SettingsModal } from './src/components/SettingsModal';
 import { rotateQueue, addPlayersToQueue, removePlayersFromQueue, getLine } from './src/utils/lineRotation';
 import { COLORS } from './src/constants';
 import './src/global.css';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { GradientBlobs } from './src/components/ScoreBoard';
 
 // Simple UUID generator
 function generateUUID() {
@@ -59,19 +55,6 @@ function assignNumbers(roster: Player[]): Player[] {
   });
 }
 
-// Register service worker for PWA support
-if (Platform.OS === 'web' && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => {
-        console.log('ServiceWorker registration successful');
-      })
-      .catch(err => {
-        console.log('ServiceWorker registration failed: ', err);
-      });
-  });
-}
-
 interface LineState {
   openQueue: Player[];
   womanQueue: Player[];
@@ -89,7 +72,7 @@ interface ScoreEvent {
 }
 
 export default function App() {
-  const scrollViewRef = useRef<GHScrollView>(null);
+  const scrollViewRef = useRef<HTMLDivElement>(null);
   const [team1Name, setTeam1Name] = useState('Disco Fever');
   const [team2Name, setTeam2Name] = useState('Away');
   const [team1Score, setTeam1Score] = useState(0);
@@ -108,13 +91,14 @@ export default function App() {
   const [gameStartTime, setGameStartTime] = useState<string>('18:45'); // 7:00pm default
   const [halftimeTime, setHalftimeTime] = useState<string>('19:30');   // 7:30pm default
   const [endTime, setEndTime] = useState<string>('20:15');             // 8:15pm default
-  const [genderRatioMode, setGenderRatioMode] = useState<'ABBA' | '4-3' | '3-4'>('ABBA');
+  const [genderRatioMode, setGenderRatioMode] = useState<'ABBA' | '4-3' | '3-4' | 'MEN' | 'WOMEN'>('ABBA');
   const [scoreHistory, setScoreHistory] = useState<ScoreEvent[]>([]);
   const [gameStarted, setGameStarted] = useState(false);
 
   // Countdown logic (moved from ScoreBoard)
   const [halftimeCountdown, setHalftimeCountdown] = useState('');
   const [endCountdown, setEndCountdown] = useState('');
+  const [showTimers, setShowTimers] = useState(false);
 
   // Add state for rotation offsets
   const [rotationOffsetOpen, setRotationOffsetOpen] = useState(0);
@@ -142,22 +126,23 @@ export default function App() {
   const getPattern = useCallback((idx: number) => {
     if (genderRatioMode === '4-3') return { men: 4, women: 3 };
     if (genderRatioMode === '3-4') return { men: 3, women: 4 };
+    if (genderRatioMode === 'MEN') return { men: 7, women: 0 };
+    if (genderRatioMode === 'WOMEN') return { men: 0, women: 7 };
     // ABBA pattern: A (4M/3W), B (3M/4W), B (3M/4W), A (4M/3W)
     const mod = idx % 4;
     if (mod === 0 || mod === 3) return { men: 4, women: 3 }; // A pattern: 4M + 3W = 7
     return { men: 3, women: 4 }; // B pattern: 3M + 4W = 7
   }, [genderRatioMode]);
 
+  // Web-compatible orientation lock (CSS-based)
   useEffect(() => {
-    const lockOrientation = async () => {
+    const lockOrientation = () => {
       try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-        console.log('Orientation locked to landscape');
+        // Use CSS to lock orientation to landscape
+        document.documentElement.style.setProperty('--orientation', 'landscape');
+        console.log('Orientation locked to landscape via CSS');
       } catch (error) {
-        // Only log if it's not the expected NotSupportedError
-        if (!(error instanceof Error && error.name === 'NotSupportedError')) {
-          console.error('Error locking orientation:', error);
-        }
+        console.error('Error setting orientation:', error);
       }
     };
     lockOrientation();
@@ -192,56 +177,44 @@ export default function App() {
       const halftimeDate = parseTimeToDate(halftimeTime);
       const endDate = parseTimeToDate(endTime);
       
-      if (!halftimeDate || !endDate) {
-        setHalftimeCountdown('00:00');
-        setEndCountdown('00:00');
+      if (!startDate || !halftimeDate || !endDate) {
+        setHalftimeCountdown('');
+        setEndCountdown('');
+        setShowTimers(false);
         return;
       }
 
-      // Check if game has started
-      if (startDate && now >= startDate) {
-        setGameStarted(true);
-      }
-
-      // Check if game has ended
-      if (endDate && now >= endDate) {
-        setGameStarted(false);
-      }
-
-      const halftimeMs = halftimeDate.getTime() - now.getTime();
-      const endMs = endDate.getTime() - now.getTime();
+      // Check if current time is >= game start time
+      const isGameStarted = now >= startDate;
       
-      setHalftimeCountdown(formatCountdown(halftimeMs));
-      setEndCountdown(formatCountdown(endMs));
+      // Check if we're within 1 hour after game end
+      const oneHourAfterEnd = new Date(endDate.getTime() + 60 * 60 * 1000);
+      const isWithinOneHourAfterEnd = now <= oneHourAfterEnd;
+      
+      // Only show timers if game has started and we're not more than 1 hour after end
+      const shouldShowTimers = isGameStarted && isWithinOneHourAfterEnd;
+      setShowTimers(shouldShowTimers);
+
+      if (shouldShowTimers) {
+        const halftimeMs = halftimeDate.getTime() - now.getTime();
+        const endMs = endDate.getTime() - now.getTime();
+
+        setHalftimeCountdown(formatCountdown(halftimeMs));
+        setEndCountdown(formatCountdown(endMs));
+      } else {
+        setHalftimeCountdown('');
+        setEndCountdown('');
+      }
     }, 1000);
-
-    // Initial set
-    const now = new Date();
-    const startDate = parseTimeToDate(gameStartTime);
-    const halftimeDate = parseTimeToDate(halftimeTime);
-    const endDate = parseTimeToDate(endTime);
-    
-    if (!halftimeDate || !endDate) {
-      setHalftimeCountdown('00:00');
-      setEndCountdown('00:00');
-      return;
-    }
-
-    // Set initial game started state
-    if (startDate && now >= startDate) {
-      setGameStarted(true);
-    }
-
-    const halftimeMs = halftimeDate.getTime() - now.getTime();
-    const endMs = endDate.getTime() - now.getTime();
-    
-    setHalftimeCountdown(formatCountdown(halftimeMs));
-    setEndCountdown(formatCountdown(endMs));
 
     return () => clearInterval(interval);
   }, [gameStartTime, halftimeTime, endTime]);
 
-  // Helper to get N players from a queue, wrapping if needed
+  // Calculate current queues based on rotation
+  const currentPattern = getPattern(lineIndex);
+  const currentOpenQueue = getWrapped(masterOpenQueue, openIndex, currentPattern.men);
+  const currentWomanQueue = getWrapped(masterWomenQueue, womenIndex, currentPattern.women);
+
   function getWrapped<T>(queue: T[], start: number, count: number): T[] {
     if (queue.length === 0) return [];
     const result = [];
@@ -252,95 +225,79 @@ export default function App() {
     return result;
   }
 
-  // For current line, use the rotation index
-  const currentPattern = getPattern(lineIndex);
-  const currentOpenQueue = getWrapped(masterOpenQueue, openIndex, currentPattern.men);
-  const currentWomanQueue = getWrapped(masterWomenQueue, womenIndex, currentPattern.women);
-
-  // For next line, advance the index by the current pattern size
-  const nextPattern = getPattern(lineIndex + 1);
-  const nextOpenQueue = getWrapped(masterOpenQueue, (openIndex + currentPattern.men) % masterOpenQueue.length, nextPattern.men);
-  const nextWomanQueue = getWrapped(masterWomenQueue, (womenIndex + currentPattern.women) % masterWomenQueue.length, nextPattern.women);
-
-  const handleTeam1ScoreChange = (score: number) => {
-    if (score < team1Score) {
-      // Undo functionality
-      const lastEvent = scoreHistory[scoreHistory.length - 1];
-      if (lastEvent) {
-        setTeam1Score(team1Score - 1);
-        setLineIndex(lastEvent.lineIndex);
-        setPointNumber(lastEvent.pointNumber);
-        setOpenIndex(lastEvent.openIndex);
-        setWomenIndex(lastEvent.womenIndex);
-        setScoreHistory(scoreHistory.slice(0, -1));
-      }
-      return;
-    } else if (score > team1Score) {
-      // Get the next pattern to determine rotation
-      const nextPattern = getPattern(lineIndex + 1);
-      // Store current state before updating
-      setScoreHistory([...scoreHistory, {
+  const handleTeam1ScoreChange = (newScore: number) => {
+    if (newScore > team1Score) {
+      const currentPattern = getPattern(lineIndex);
+      setScoreHistory(prev => [...prev, {
         team: 1,
         lineIndex,
         pointNumber,
         openIndex,
-        womenIndex
+        womenIndex,
       }]);
-      // Advance the rotation index by the current pattern size
-      setOpenIndex((prev) => (prev + currentPattern.men) % masterOpenQueue.length);
-      setWomenIndex((prev) => (prev + currentPattern.women) % masterWomenQueue.length);
-      setLineIndex(lineIndex + 1);
-      setPointNumber(pointNumber + 1);
+      setTeam1Score(newScore);
+      setOpenIndex(prev => prev + currentPattern.men);
+      setWomenIndex(prev => prev + currentPattern.women);
+      setLineIndex(prev => prev + 1);
+      setPointNumber(prev => prev + 1);
+    } else {
+      setTeam1Score(newScore);
     }
-    setTeam1Score(score);
   };
 
-  const handleTeam2ScoreChange = (score: number) => {
-    if (score < team2Score) {
-      // Undo functionality
-      const lastEvent = scoreHistory[scoreHistory.length - 1];
-      if (lastEvent) {
-        setTeam2Score(team2Score - 1);
-        setLineIndex(lastEvent.lineIndex);
-        setPointNumber(lastEvent.pointNumber);
-        setOpenIndex(lastEvent.openIndex);
-        setWomenIndex(lastEvent.womenIndex);
-        setScoreHistory(scoreHistory.slice(0, -1));
-      }
-      return;
-    } else if (score > team2Score) {
-      // Get the next pattern to determine rotation
-      const nextPattern = getPattern(lineIndex + 1);
-      // Store current state before updating
-      setScoreHistory([...scoreHistory, {
+  const handleTeam2ScoreChange = (newScore: number) => {
+    if (newScore > team2Score) {
+      const currentPattern = getPattern(lineIndex);
+      setScoreHistory(prev => [...prev, {
         team: 2,
         lineIndex,
         pointNumber,
         openIndex,
-        womenIndex
+        womenIndex,
       }]);
-      // Advance the rotation index by the current pattern size
-      setOpenIndex((prev) => (prev + currentPattern.men) % masterOpenQueue.length);
-      setWomenIndex((prev) => (prev + currentPattern.women) % masterWomenQueue.length);
-      setLineIndex(lineIndex + 1);
-      setPointNumber(pointNumber + 1);
+      setTeam2Score(newScore);
+      setOpenIndex(prev => prev + currentPattern.men);
+      setWomenIndex(prev => prev + currentPattern.women);
+      setLineIndex(prev => prev + 1);
+      setPointNumber(prev => prev + 1);
+    } else {
+      setTeam2Score(newScore);
     }
-    setTeam2Score(score);
   };
 
-  // Reset function
   const handleReset = () => {
     setTeam1Score(0);
     setTeam2Score(0);
     setLineIndex(0);
     setPointNumber(1);
-    setOpenIndex(0);
-    setWomenIndex(0);
     setLineHistory([]);
     setScoreHistory([]);
-    const numberedRoster = assignNumbers(initialRoster);
-    setMasterOpenQueue(numberedRoster.filter(p => p.gender === 'O'));
-    setMasterWomenQueue(numberedRoster.filter(p => p.gender === 'W'));
+    setGameStarted(false);
+    setOpenIndex(0);
+    setWomenIndex(0);
+  };
+
+  const handleUndo = () => {
+    if (scoreHistory.length === 0) return;
+    
+    // Get the last score event
+    const lastEvent = scoreHistory[scoreHistory.length - 1];
+    
+    // Revert the score
+    if (lastEvent.team === 1) {
+      setTeam1Score(prev => prev - 1);
+    } else {
+      setTeam2Score(prev => prev - 1);
+    }
+    
+    // Restore the previous line state
+    setLineIndex(lastEvent.lineIndex);
+    setPointNumber(lastEvent.pointNumber);
+    setOpenIndex(lastEvent.openIndex);
+    setWomenIndex(lastEvent.womenIndex);
+    
+    // Remove the last event from history
+    setScoreHistory(prev => prev.slice(0, -1));
   };
 
   const handlePointNumberChange = (point: number) => {
@@ -348,56 +305,125 @@ export default function App() {
   };
 
   const handleLineIndexChange = (index: number) => {
+    // Save current line state to history
+    const currentLineState: LineState = {
+      openQueue: currentOpenQueue,
+      womanQueue: currentWomanQueue,
+      lineIndex,
+      pointNumber,
+    };
+    setLineHistory(prev => [...prev, currentLineState]);
+    
+    // Update indices
+    const currentPattern = getPattern(lineIndex);
+    const nextPattern = getPattern(index);
+    
+    setOpenIndex(prev => prev + currentPattern.men);
+    setWomenIndex(prev => prev + currentPattern.women);
     setLineIndex(index);
+    setPointNumber(1);
   };
 
-  // Compute the current line snapshot for ScoreBoard
-  const currentLineSnapshot = lineHistory.length > 0
-    ? lineHistory[lineHistory.length - 1]
-    : { openQueue: masterOpenQueue, womanQueue: masterWomenQueue };
-
-  // Debug logs
-  console.log('Current Line:', getLine(currentOpenQueue, currentWomanQueue, currentPattern).map(p => p.name));
-  console.log('Next Line:', getLine(nextOpenQueue, nextWomanQueue, nextPattern).map(p => p.name));
-  console.log('Current Pattern:', currentPattern);
-  console.log('Next Pattern:', nextPattern);
-  console.log('Current Total:', currentPattern.men + currentPattern.women);
-  console.log('Next Total:', nextPattern.men + nextPattern.women);
-
-  // Add function to handle late arrivals
-  const handleLateArrival = (player: Player) => {
-    // Check if player would be in current line by simulating adding them to the master queue
-    const simulatedMasterOpenQueue = player.gender === 'O' 
-      ? [...masterOpenQueue, player]
-      : masterOpenQueue;
-    const simulatedMasterWomenQueue = player.gender === 'W'
-      ? [...masterWomenQueue, player]
-      : masterWomenQueue;
+  const onRosterChange = (newRoster: Player[]) => {
+    const newRosterIds = new Set(newRoster.map(p => p.uuid));
+    const removedPlayers = roster.filter(p => !newRosterIds.has(p.uuid));
+  
+    let nextMasterOpenQueue = [...masterOpenQueue];
+    let nextMasterWomenQueue = [...masterWomenQueue];
+    let nextOpenIndex = openIndex;
+    let nextWomenIndex = womenIndex;
+  
+    if (removedPlayers.length > 0) {
+      // This is a removal
+      const currentPattern = getPattern(lineIndex);
+  
+      const openLineUUIDs = new Set(getWrapped(masterOpenQueue, openIndex, currentPattern.men).map(p => p.uuid));
+      const womenLineUUIDs = new Set(getWrapped(masterWomenQueue, womenIndex, currentPattern.women).map(p => p.uuid));
+  
+      removedPlayers.forEach(player => {
+        const isOnLine = player.gender === 'O' ? openLineUUIDs.has(player.uuid) : womenLineUUIDs.has(player.uuid);
+        
+        if (isOnLine) {
+          // Player on the line was removed. Just filter them out. The line will auto-adjust.
+          if (player.gender === 'O') {
+            nextMasterOpenQueue = nextMasterOpenQueue.filter(p => p.uuid !== player.uuid);
+          } else {
+            nextMasterWomenQueue = nextMasterWomenQueue.filter(p => p.uuid !== player.uuid);
+          }
+        } else {
+          // Player not on the line was removed. We need to preserve the line.
+          if (player.gender === 'O' && nextMasterOpenQueue.length > 0) {
+            const oldQueue = nextMasterOpenQueue;
+            const oldLength = oldQueue.length;
+            const effectiveStart = nextOpenIndex % oldLength;
+            const startPlayer = oldQueue[effectiveStart];
+            const rotations = Math.floor(nextOpenIndex / oldLength);
+            
+            const newQueue = oldQueue.filter(p => p.uuid !== player.uuid);
+            
+            if (newQueue.length < oldQueue.length) {
+              const newLength = newQueue.length;
+              const newEffectiveIndex = newQueue.findIndex(p => p.uuid === startPlayer?.uuid);
+  
+              if (newEffectiveIndex !== -1) {
+                nextOpenIndex = rotations * newLength + newEffectiveIndex;
+                nextMasterOpenQueue = newQueue;
+              }
+            }
+          } else if (player.gender === 'W' && nextMasterWomenQueue.length > 0) {
+            const oldQueue = nextMasterWomenQueue;
+            const oldLength = oldQueue.length;
+            const effectiveStart = nextWomenIndex % oldLength;
+            const startPlayer = oldQueue[effectiveStart];
+            const rotations = Math.floor(nextWomenIndex / oldLength);
+            
+            const newQueue = oldQueue.filter(p => p.uuid !== player.uuid);
+  
+            if (newQueue.length < oldQueue.length) {
+              const newLength = newQueue.length;
+              const newEffectiveIndex = newQueue.findIndex(p => p.uuid === startPlayer?.uuid);
     
-    // Get the current line from the simulated master queues
-    const simulatedCurrentLine = getLine(
-      getWrapped(simulatedMasterOpenQueue, openIndex, currentPattern.men),
-      getWrapped(simulatedMasterWomenQueue, womenIndex, currentPattern.women),
-      currentPattern
-    );
-    
-    const wouldBeInCurrentLine = simulatedCurrentLine.some(p => p.uuid === player.uuid);
-    
-    if (wouldBeInCurrentLine) {
-      // If player would be in current line, add to pending
-      setPendingPlayers(prev => [...prev, player]);
-    } else {
-      // If player would not be in current line, add directly to rotation
-      if (player.gender === 'O') {
-        setMasterOpenQueue(prev => [...prev, player]);
-      } else {
-        setMasterWomenQueue(prev => [...prev, player]);
-      }
-      // Add to roster immediately
-      setRoster(prev => {
-        const updated = [...prev, player];
-        return assignNumbers(updated);
+              if (newEffectiveIndex !== -1) {
+                nextWomenIndex = rotations * newLength + newEffectiveIndex;
+                nextMasterWomenQueue = newQueue;
+              }
+            }
+          }
+        }
       });
+    } else {
+      // This is a re-order, not a removal.
+      const stillPendingIds = new Set(pendingPlayers.map(p => p.uuid));
+      const activePlayers = newRoster.filter(p => !stillPendingIds.has(p.uuid));
+      nextMasterOpenQueue = activePlayers.filter(p => p.gender === 'O');
+      nextMasterWomenQueue = activePlayers.filter(p => p.gender === 'W');
+    }
+  
+    setRoster(newRoster);
+    setMasterOpenQueue(nextMasterOpenQueue);
+    setMasterWomenQueue(nextMasterWomenQueue);
+    setOpenIndex(nextOpenIndex);
+    setWomenIndex(nextWomenIndex);
+
+    const stillPending = pendingPlayers.filter(p => newRosterIds.has(p.uuid));
+    setPendingPlayers(stillPending);
+  };
+
+  const handleLateArrival = (player: Player) => {
+    const tempRoster = assignNumbers([...roster, player]);
+    const openWithNew = tempRoster.filter(p => p.gender === 'O');
+    const womenWithNew = tempRoster.filter(p => p.gender === 'W');
+    
+    const lineWithNewPlayer = getLine(openWithNew, womenWithNew, getPattern(lineIndex), openIndex, womenIndex);
+    const wouldBeInCurrentLine = lineWithNewPlayer.some(p => p.uuid === player.uuid);
+
+    setRoster(tempRoster);
+
+    if (wouldBeInCurrentLine) {
+        setPendingPlayers(prev => [...prev, player]);
+    } else {
+        setMasterOpenQueue(openWithNew);
+        setMasterWomenQueue(womenWithNew);
     }
   };
 
@@ -405,58 +431,28 @@ export default function App() {
   useEffect(() => {
     if (pendingPlayers.length === 0) return;
 
-    // Only process pending players when the line changes
-    const currentLine = getLine(currentOpenQueue, currentWomanQueue, currentPattern);
-    const allCurrentLinePlayers = new Set(currentLine.map(p => p.uuid));
-    
-    // Try to add any pending players that aren't in current line
-    pendingPlayers.forEach(player => {
-      if (!allCurrentLinePlayers.has(player.uuid)) {
-        // Add to the appropriate queue
-        if (player.gender === 'O') {
-          setMasterOpenQueue(prev => [...prev, player]);
-        } else {
-          setMasterWomenQueue(prev => [...prev, player]);
-        }
-        
-        // Add to roster when no longer pending
-        setRoster(prev => {
-          const updated = [...prev, player];
-          return assignNumbers(updated);
-        });
-        
-        // Remove from pending players
-        setPendingPlayers(prev => prev.filter(p => p.uuid !== player.uuid));
-      }
-    });
-  }, [lineIndex]); // Only run when lineIndex changes
+    const newCurrentPattern = getPattern(lineIndex);
+    const playersToActivate: Player[] = [];
+    const playersStillPending: Player[] = [];
 
-  // Add effect to handle roster changes without resetting queues
-  useEffect(() => {
-    // Get current line players
-    const currentLine = getLine(currentOpenQueue, currentWomanQueue, currentPattern);
-    const currentLinePlayerIds = new Set(currentLine.map(p => p.uuid));
-    
-    // Check if any deleted players were in the current line
-    const deletedPlayers = roster.filter(p => !currentLinePlayerIds.has(p.uuid));
-    const anyDeletedInCurrentLine = deletedPlayers.some(p => currentLinePlayerIds.has(p.uuid));
-    
-    // Only update master queues if no players in current line were deleted
-    if (!anyDeletedInCurrentLine) {
-      // Update the master queues with the new roster order, maintaining existing numbers
-      const newOpenPlayers = roster.filter(p => p.gender === 'O');
-      const newWomenPlayers = roster.filter(p => p.gender === 'W');
-      
-      // Calculate new indices to maintain the same relative position
-      const newOpenIndex = Math.min(openIndex, newOpenPlayers.length - 1);
-      const newWomenIndex = Math.min(womenIndex, newWomenPlayers.length - 1);
-      
-      setMasterOpenQueue(newOpenPlayers);
-      setMasterWomenQueue(newWomenPlayers);
-      setOpenIndex(newOpenIndex);
-      setWomenIndex(newWomenIndex);
+    pendingPlayers.forEach(p => {
+        const simulatedOpen = p.gender === 'O' ? [...masterOpenQueue, p] : masterOpenQueue;
+        const simulatedWomen = p.gender === 'W' ? [...masterWomenQueue, p] : masterWomenQueue;
+        const lineWithPendingPlayer = getLine(simulatedOpen, simulatedWomen, newCurrentPattern, openIndex, womenIndex);
+        
+        if (lineWithPendingPlayer.some(lineP => lineP.uuid === p.uuid)) {
+            playersStillPending.push(p);
+        } else {
+            playersToActivate.push(p);
+        }
+    });
+
+    if (playersToActivate.length > 0) {
+        setMasterOpenQueue(prev => [...prev, ...playersToActivate.filter(p => p.gender === 'O')]);
+        setMasterWomenQueue(prev => [...prev, ...playersToActivate.filter(p => p.gender === 'W')]);
+        setPendingPlayers(playersStillPending);
     }
-  }, [roster, genderRatioMode]);
+  }, [lineIndex, openIndex, womenIndex]);
 
   // Add effect to handle gender ratio mode changes
   useEffect(() => {
@@ -475,55 +471,44 @@ export default function App() {
   }, [genderRatioMode]);
 
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <GHScrollView 
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollViewContent}
-        horizontal={false}
-        showsVerticalScrollIndicator={true}
-        showsHorizontalScrollIndicator={false}
-        scrollEnabled={true}
-        directionalLockEnabled={true}
-        bounces={false}
-        alwaysBounceHorizontal={false}
-        alwaysBounceVertical={false}
-      >
-        <View style={styles.content}>
-          <ScoreBoard
-            team1Name={team1Name}
-            team2Name={team2Name}
-            team1Score={team1Score}
-            team2Score={team2Score}
-            onTeam1ScoreChange={handleTeam1ScoreChange}
-            onTeam2ScoreChange={handleTeam2ScoreChange}
-            lineIndex={lineIndex}
-            pointNumber={pointNumber}
-            onReset={handleReset}
-            genderRatioMode={genderRatioMode}
-            halftimeCountdown={halftimeCountdown}
-            endCountdown={endCountdown}
-            setSettingsVisible={setSettingsVisible}
-            roster={roster}
-            openQueue={getWrapped(masterOpenQueue, openIndex, getPattern(lineIndex).men)}
-            womanQueue={getWrapped(masterWomenQueue, womenIndex, getPattern(lineIndex).women)}
-            nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
-            nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
-            lineHistory={lineHistory}
-            scoreHistory={scoreHistory}
-            onLateArrival={handleLateArrival}
-            pendingPlayers={pendingPlayers}
-            gameStarted={gameStarted}
-          />
-          <PlayerManager
-            roster={roster}
-            onRosterChange={setRoster}
-            scrollViewRef={scrollViewRef}
-            onLateArrival={handleLateArrival}
-            pendingPlayers={pendingPlayers}
-          />
-        </View>
-      </GHScrollView>
+    <div style={styles.container}>
+      <GradientBlobs />
+      <div style={styles.mainContent}>
+        <ScoreBoard
+          team1Name={team1Name}
+          team2Name={team2Name}
+          team1Score={team1Score}
+          team2Score={team2Score}
+          onTeam1ScoreChange={handleTeam1ScoreChange}
+          onTeam2ScoreChange={handleTeam2ScoreChange}
+          lineIndex={lineIndex}
+          pointNumber={pointNumber}
+          onReset={handleReset}
+          onUndo={handleUndo}
+          genderRatioMode={genderRatioMode}
+          halftimeCountdown={halftimeCountdown}
+          endCountdown={endCountdown}
+          showTimers={showTimers}
+          setSettingsVisible={setSettingsVisible}
+          roster={roster}
+          openQueue={getWrapped(masterOpenQueue, openIndex, getPattern(lineIndex).men)}
+          womanQueue={getWrapped(masterWomenQueue, womenIndex, getPattern(lineIndex).women)}
+          nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
+          nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
+          lineHistory={lineHistory}
+          scoreHistory={scoreHistory}
+          onLateArrival={handleLateArrival}
+          pendingPlayers={pendingPlayers}
+          gameStarted={gameStarted}
+        />
+      </div>
+      <PlayerManager
+        roster={roster}
+        onRosterChange={onRosterChange}
+        scrollViewRef={scrollViewRef}
+        onLateArrival={handleLateArrival}
+        pendingPlayers={pendingPlayers}
+      />
       <SettingsModal
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
@@ -541,40 +526,19 @@ export default function App() {
         onGenderRatioModeChange={setGenderRatioMode}
         onReset={handleReset}
       />
-    </GestureHandlerRootView>
+    </div>
   );
 }
 
-const styles = StyleSheet.create({
+const styles: Record<string, React.CSSProperties> = {
   container: {
-    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
     backgroundColor: COLORS.background,
-    width: '100%',
-    height: '100%',
-    overflow: 'hidden',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
-  scrollView: {
+  mainContent: {
     flex: 1,
-    width: '100%',
-    overflow: 'hidden',
+    overflow: 'auto',
   },
-  scrollViewContent: {
-    flexGrow: 1,
-    width: '100%',
-    overflow: 'hidden',
-  },
-  content: {
-    flex: 1,
-    width: '100%',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  header: {
-    // Add appropriate styles for the header
-  },
-});
+};

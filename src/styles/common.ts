@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
 import { COLORS } from '../constants';
 
-export const commonStyles = StyleSheet.create({
+export const commonStyles = {
   cardContainer: {
     padding: 10,
     backgroundColor: '#1a1a1a',
@@ -12,4 +11,4 @@ export const commonStyles = StyleSheet.create({
     flexShrink: 0,
     width: '100%',
   },
-}); 
+}; 

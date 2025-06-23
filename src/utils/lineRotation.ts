@@ -18,17 +18,12 @@ export function getLine(openQueue: Player[], womanQueue: Player[], pattern: { me
   const men = getWrapped(openQueue, openIndex, pattern.men);
   const women = getWrapped(womanQueue, womenIndex, pattern.women);
   
-  // Debug logs
-  console.log('getLine - Pattern:', pattern);
-  console.log('getLine - Men:', men.map(p => p.name));
-  console.log('getLine - Women:', women.map(p => p.name));
-  
   // Return men first, then women
   return [...men, ...women];
 }
 
 // Helper function to get N players from a queue, wrapping if needed
-function getWrapped<T>(queue: T[], start: number, count: number): T[] {
+export function getWrapped<T>(queue: T[], start: number, count: number): T[] {
   if (queue.length === 0) return [];
   const result = [];
   for (let i = 0; i < count; i++) {
@@ -62,13 +57,6 @@ export function getNextLine(openQueue: Player[], womanQueue: Player[], lineIndex
 
   // Get the line based on the next pattern
   const nextLine = getLine(nextOpenQueue, nextWomanQueue, nextPattern);
-
-  // Debug logs
-  console.log('Current Queue:', openQueue.map(p => p.name));
-  console.log('Next Queue:', nextOpenQueue.map(p => p.name));
-  console.log('Next Line:', nextLine.map(p => p.name));
-  console.log('Current Pattern:', pattern);
-  console.log('Next Pattern:', nextPattern);
 
   return nextLine;
 }
