@@ -150,25 +150,10 @@ export function ScoreBoard({
   const handleScoreClick = (team: 'team1' | 'team2') => {
     // Prevent spam clicking
     if (isAnimating) return;
-    
     setIsAnimating(true);
-    
-    // Get the button element
-    const button = document.querySelector(`[data-team="${team}"]`) as HTMLElement;
-    
-    // Add flash animation class
-    if (button) {
-      button.style.animation = 'scoreFlash 0.3s ease-out';
-      
-      // Remove animation after it completes
-      setTimeout(() => {
-        button.style.animation = '';
-        setIsAnimating(false);
-      }, 300);
-    } else {
+    setTimeout(() => {
       setIsAnimating(false);
-    }
-    
+    }, 300);
     if (team === 'team1') {
       onTeam1ScoreChange(team1Score + 1);
     } else {
@@ -181,10 +166,8 @@ export function ScoreBoard({
   // Remove debug border from player columns
   const lineSectionStyle = {
     ...styles.lineSection,
-    minWidth: isMobile ? '180px' : '300px',
-    flexShrink: 0,
-    flex: isMobile ? '0 0 auto' : styles.lineSection.flex,
-    // border: '2px solid #4a90e2', // removed debug border
+    flex: '1 1 0%',
+    minWidth: 0,
   };
   const scoreStyle = {
     ...styles.score,
@@ -231,6 +214,16 @@ export function ScoreBoard({
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: '5.5px',
     padding: '0 8.5px',
+  };
+
+  // Make player columns always scale with browser width
+  const lineDisplayStyle = {
+    display: 'flex',
+    flexDirection: 'row' as const,
+    width: '100%',
+    flexWrap: 'nowrap' as const,
+    overflowX: 'visible' as const,
+    gap: isMobile ? '8px' : styles.lineDisplay.gap,
   };
 
   return (
@@ -343,15 +336,8 @@ export function ScoreBoard({
           )}
         </div>
       </div>
-      {/* Team columns always side by side, allow horizontal scroll on mobile */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'row',
-        flexWrap: 'nowrap',
-        overflowX: 'auto',
-        width: isMobile ? '100vw' : '100%',
-        gap: isMobile ? '8px' : styles.lineDisplay.gap,
-      }}>
+      {/* Team columns always scale, never scroll */}
+      <div style={lineDisplayStyle}>
         <div style={lineSectionStyle}>
           <h3 style={styles.lineTitle}>Current Line</h3>
           <div style={styles.playerListVertical}>
