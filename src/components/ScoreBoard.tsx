@@ -206,32 +206,87 @@ export function ScoreBoard({
           </button>
         </div>
       </div>
-      <div style={styles.topBar}>
-        <div style={styles.scoreContainer}>
-          <button 
-            style={styles.teamDisplay}
+      <div
+        style={{
+          ...styles.topBar,
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
+          padding: isMobile ? '6px' : styles.topBar.padding,
+        }}
+      >
+        <div
+          style={{
+            ...styles.scoreContainer,
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? '10px' : styles.scoreContainer.gap,
+            alignItems: isMobile ? 'stretch' : 'center',
+          }}
+        >
+          <button
+            style={{
+              ...styles.teamDisplay,
+              flexDirection: 'column',
+              alignItems: 'center',
+              minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
+              padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
+            }}
             data-team="team1"
             onClick={() => handleScoreClick('team1')}
           >
-            <h2 style={styles.teamName}>{team1Name}</h2>
-            <h1 style={styles.score}>{team1Score}</h1>
+            <h2 style={{
+              ...styles.teamName,
+              fontSize: isMobile ? '15px' : styles.teamName.fontSize,
+              marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
+            }}>{team1Name}</h2>
+            <h1 style={{
+              ...styles.score,
+              fontSize: isMobile ? '32px' : styles.score.fontSize,
+            }}>{team1Score}</h1>
           </button>
-          <div style={styles.scoreDivider}>
+          <div
+            style={{
+              ...styles.scoreDivider,
+              flexDirection: isMobile ? 'row' : 'column',
+              alignItems: 'center',
+              gap: isMobile ? '8px' : styles.scoreDivider.gap,
+              margin: isMobile ? '0 0 0 0' : undefined,
+              justifyContent: 'center',
+            }}
+          >
             <div style={{
               ...styles.scoreDiff,
+              fontSize: isMobile ? '18px' : styles.scoreDiff.fontSize,
               color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text
             }}>
               {scoreDiff !== 0 ? scoreDiff : "0"}
             </div>
-            <div style={styles.dividerLine}></div>
+            <div style={{
+              ...styles.dividerLine,
+              width: isMobile ? '1px' : '100%',
+              height: isMobile ? '32px' : styles.dividerLine.height,
+              backgroundColor: COLORS.textSecondary,
+            }}></div>
           </div>
-          <button 
-            style={styles.teamDisplay}
+          <button
+            style={{
+              ...styles.teamDisplay,
+              flexDirection: 'column',
+              alignItems: 'center',
+              minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
+              padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
+            }}
             data-team="team2"
             onClick={() => handleScoreClick('team2')}
           >
-            <h2 style={styles.teamName}>{team2Name}</h2>
-            <h1 style={styles.score}>{team2Score}</h1>
+            <h2 style={{
+              ...styles.teamName,
+              fontSize: isMobile ? '15px' : styles.teamName.fontSize,
+              marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
+            }}>{team2Name}</h2>
+            <h1 style={{
+              ...styles.score,
+              fontSize: isMobile ? '32px' : styles.score.fontSize,
+            }}>{team2Score}</h1>
           </button>
         </div>
       </div>

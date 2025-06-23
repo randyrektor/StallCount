@@ -152,7 +152,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     <div style={styles.container}>
       <div style={styles.buttonRow}>
         <button style={styles.toggleButton} onClick={() => setIsVisible(!isVisible)}>
-          {isVisible ? 'Hide Player Manager' : 'Show Player Manager'}
+          {isVisible ? 'Done' : 'Player Manager'}
         </button>
       </div>
 
