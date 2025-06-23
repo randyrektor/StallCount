@@ -194,16 +194,16 @@ export function ScoreBoard({
     textOverflow: 'ellipsis',
     width: '100%',
     margin: '0 auto',
-    background: '#333',
+    background: undefined,
     borderRadius: '6px',
     padding: '8px 0',
   };
 
-  // Force team scores side by side always
+  // Responsive team scores row
   const teamScoresRowStyle = {
     display: 'flex',
     flexDirection: 'row' as const,
-    flexWrap: 'nowrap' as const,
+    flexWrap: 'wrap' as const,
     justifyContent: 'space-around',
     alignItems: 'center',
     width: '100%',
@@ -212,12 +212,25 @@ export function ScoreBoard({
   const teamScoreButtonStyle = {
     ...styles.teamDisplay,
     flex: 1,
-    minWidth: isMobile ? '120px' : '180px',
-    maxWidth: '300px',
+    width: '100%',
+    minWidth: undefined,
+    maxWidth: undefined,
     flexDirection: 'column' as const,
     alignItems: 'center',
     minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
     padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
+    background: undefined,
+  };
+  const scoreDiffStyle = {
+    ...styles.scoreDiff,
+    fontSize: isMobile ? '24px' : '28px',
+    fontWeight: 700,
+    color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+    minWidth: '36px',
+    textAlign: 'center' as const,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: '5.5px',
+    padding: '0 8.5px',
   };
 
   return (
@@ -284,26 +297,8 @@ export function ScoreBoard({
             }}>{team1Name}</h2>
             <h1 style={scoreStyle}>{team1Score}</h1>
           </button>
-          {/* Only show score diff here on desktop */}
-          {!isMobile && (
-            <div
-              style={{
-                ...styles.scoreDivider,
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: styles.scoreDivider.gap,
-                justifyContent: 'center',
-              }}
-            >
-              {scoreDiff !== 0 ? scoreDiff : '0'}
-              <div style={{
-                ...styles.dividerLine,
-                width: '100%',
-                height: styles.dividerLine.height,
-                backgroundColor: COLORS.textSecondary,
-              }}></div>
-            </div>
-          )}
+          {/* Score diff always visible and styled */}
+          <div style={scoreDiffStyle}>{scoreDiff !== 0 ? scoreDiff : '0'}</div>
           <button
             style={teamScoreButtonStyle}
             data-team="team2"
