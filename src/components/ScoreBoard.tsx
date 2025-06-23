@@ -176,26 +176,27 @@ export function ScoreBoard({
     }
   };
 
+  // Robust mobile/desktop layout fixes
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 600;
-
-  // Helper for mobile: render score diff next to ABBA
-  const ScoreDiffDisplay = (
-    <div style={{
-      ...styles.scoreDiff,
-      fontSize: isMobile ? '16px' : styles.scoreDiff.fontSize,
-      color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
-      marginLeft: isMobile ? 8 : 0,
-      marginRight: isMobile ? 0 : 0,
-      alignSelf: isMobile ? 'center' : undefined,
-    }}>
-      {scoreDiff !== 0 ? scoreDiff : '0'}
-    </div>
-  );
-
-  // Update styles for mobile fixes
-  const teamMinWidth = isMobile ? '48vw' : undefined;
-  const teamButtonMinWidth = isMobile ? '100px' : undefined;
-  const lineSectionMinWidth = isMobile ? '180px' : undefined;
+  const lineSectionStyle = {
+    ...styles.lineSection,
+    minWidth: isMobile ? '180px' : '300px',
+    flexShrink: 0,
+    flex: isMobile ? '0 0 auto' : styles.lineSection.flex,
+    border: '2px solid #4a90e2', // debug border, remove if not needed
+  };
+  const scoreStyle = {
+    ...styles.score,
+    fontSize: isMobile ? '32px' : styles.score.fontSize,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    width: '100%',
+    margin: '0 auto',
+    background: '#333',
+    borderRadius: '6px',
+    padding: '8px 0',
+  };
 
   return (
     <div style={styles.container}>
@@ -271,10 +272,7 @@ export function ScoreBoard({
               fontSize: isMobile ? '15px' : styles.teamName.fontSize,
               marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
             }}>{team1Name}</h2>
-            <h1 style={{
-              ...styles.score,
-              fontSize: isMobile ? '32px' : styles.score.fontSize,
-            }}>{team1Score}</h1>
+            <h1 style={scoreStyle}>{team1Score}</h1>
           </button>
           {/* Only show score diff here on desktop */}
           {!isMobile && (
@@ -287,7 +285,7 @@ export function ScoreBoard({
                 justifyContent: 'center',
               }}
             >
-              {ScoreDiffDisplay}
+              {scoreDiff !== 0 ? scoreDiff : '0'}
               <div style={{
                 ...styles.dividerLine,
                 width: '100%',
@@ -312,10 +310,7 @@ export function ScoreBoard({
               fontSize: isMobile ? '15px' : styles.teamName.fontSize,
               marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
             }}>{team2Name}</h2>
-            <h1 style={{
-              ...styles.score,
-              fontSize: isMobile ? '32px' : styles.score.fontSize,
-            }}>{team2Score}</h1>
+            <h1 style={scoreStyle}>{team2Score}</h1>
           </button>
         </div>
       </div>
@@ -333,7 +328,18 @@ export function ScoreBoard({
                 ))}
               </div>
               {/* On mobile, show score diff here */}
-              {isMobile && ScoreDiffDisplay}
+              {isMobile && (
+                <div style={{
+                  ...styles.scoreDiff,
+                  fontSize: isMobile ? '16px' : styles.scoreDiff.fontSize,
+                  color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+                  marginLeft: isMobile ? 8 : 0,
+                  marginRight: isMobile ? 0 : 0,
+                  alignSelf: isMobile ? 'center' : undefined,
+                }}>
+                  {scoreDiff !== 0 ? scoreDiff : '0'}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -344,14 +350,10 @@ export function ScoreBoard({
         flexDirection: 'row',
         flexWrap: 'nowrap',
         overflowX: 'auto',
-        width: '100%',
+        width: isMobile ? '100vw' : '100%',
         gap: isMobile ? '8px' : styles.lineDisplay.gap,
       }}>
-        <div style={{
-          ...styles.lineSection,
-          minWidth: lineSectionMinWidth,
-          flex: isMobile ? '0 0 auto' : styles.lineSection.flex,
-        }}>
+        <div style={lineSectionStyle}>
           <h3 style={styles.lineTitle}>Current Line</h3>
           <div style={styles.playerListVertical}>
             {currentLine.map((player: Player) => (
@@ -361,11 +363,7 @@ export function ScoreBoard({
             ))}
           </div>
         </div>
-        <div style={{
-          ...styles.lineSection,
-          minWidth: lineSectionMinWidth,
-          flex: isMobile ? '0 0 auto' : styles.lineSection.flex,
-        }}>
+        <div style={lineSectionStyle}>
           <h3 style={styles.lineTitle}>Next Line</h3>
           <div style={styles.playerListVertical}>
             {nextLine.map((player: Player) => (
