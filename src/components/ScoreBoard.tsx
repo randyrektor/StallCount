@@ -284,7 +284,10 @@ export function ScoreBoard({
         {/* Only the team scores row is forced side by side */}
         <div style={teamScoresRowStyle}>
           <button
-            style={teamScoreButtonStyle}
+            style={{
+              ...teamScoreButtonStyle,
+              animation: flashTeam1 ? 'scoreFlash 0.3s ease-out' : undefined,
+            }}
             data-team="team1"
             onClick={() => handleScoreClick('team1')}
           >
@@ -293,17 +296,15 @@ export function ScoreBoard({
               fontSize: isMobile ? '15px' : styles.teamName.fontSize,
               marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
             }}>{team1Name}</h2>
-            <h1
-              style={{
-                ...scoreStyle,
-                animation: flashTeam1 ? 'scoreFlash 0.3s ease-out' : undefined,
-              }}
-            >{team1Score}</h1>
+            <h1 style={scoreStyle}>{team1Score}</h1>
           </button>
           {/* Score diff always visible and styled */}
           <div style={scoreDiffStyle}>{scoreDiff !== 0 ? scoreDiff : '0'}</div>
           <button
-            style={teamScoreButtonStyle}
+            style={{
+              ...teamScoreButtonStyle,
+              animation: flashTeam2 ? 'scoreFlash 0.3s ease-out' : undefined,
+            }}
             data-team="team2"
             onClick={() => handleScoreClick('team2')}
           >
@@ -312,12 +313,7 @@ export function ScoreBoard({
               fontSize: isMobile ? '15px' : styles.teamName.fontSize,
               marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
             }}>{team2Name}</h2>
-            <h1
-              style={{
-                ...scoreStyle,
-                animation: flashTeam2 ? 'scoreFlash 0.3s ease-out' : undefined,
-              }}
-            >{team2Score}</h1>
+            <h1 style={scoreStyle}>{team2Score}</h1>
           </button>
         </div>
       </div>
