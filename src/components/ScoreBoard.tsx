@@ -178,9 +178,23 @@ export function ScoreBoard({
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 600;
 
+  // Helper for mobile: render score diff next to ABBA
+  const ScoreDiffDisplay = (
+    <div style={{
+      ...styles.scoreDiff,
+      fontSize: isMobile ? '16px' : styles.scoreDiff.fontSize,
+      color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+      marginLeft: isMobile ? 8 : 0,
+      marginRight: isMobile ? 0 : 0,
+      alignSelf: isMobile ? 'center' : undefined,
+    }}>
+      {scoreDiff !== 0 ? scoreDiff : '0'}
+    </div>
+  );
+
   return (
     <div style={styles.container}>
-      <div style={styles.topRow}>
+      <div style={{ ...styles.topRow, marginBottom: isMobile ? '2.5px' : styles.topRow.marginBottom }}>
         <div style={styles.timersSection}>
           {showTimers && (
             <>
@@ -189,19 +203,33 @@ export function ScoreBoard({
             </>
           )}
         </div>
-        <div style={styles.settingsSection}>
-          <button 
+        <div style={{
+          ...styles.settingsSection,
+          padding: isMobile ? '2.5px 0' : styles.settingsSection.padding,
+          marginBottom: isMobile ? '2.5px' : styles.settingsSection.marginBottom,
+          gap: isMobile ? '4px' : styles.settingsSection.gap,
+        }}>
+          <button
             style={{
               ...styles.undoButton,
               opacity: scoreHistory.length === 0 ? 0.5 : 1,
               cursor: scoreHistory.length === 0 ? 'not-allowed' : 'pointer',
-            }} 
+              padding: isMobile ? '4px 8px' : styles.undoButton.padding,
+              fontSize: isMobile ? '10px' : styles.undoButton.fontSize,
+            }}
             onClick={onUndo}
             disabled={scoreHistory.length === 0}
           >
             UNDO
           </button>
-          <button style={styles.settingsButton} onClick={() => setSettingsVisible(true)}>
+          <button
+            style={{
+              ...styles.settingsButton,
+              padding: isMobile ? '4px 8px' : styles.settingsButton.padding,
+              fontSize: isMobile ? '10px' : styles.settingsButton.fontSize,
+            }}
+            onClick={() => setSettingsVisible(true)}
+          >
             SETTINGS
           </button>
         </div>
@@ -243,30 +271,26 @@ export function ScoreBoard({
               fontSize: isMobile ? '32px' : styles.score.fontSize,
             }}>{team1Score}</h1>
           </button>
-          <div
-            style={{
-              ...styles.scoreDivider,
-              flexDirection: isMobile ? 'row' : 'column',
-              alignItems: 'center',
-              gap: isMobile ? '8px' : styles.scoreDivider.gap,
-              margin: isMobile ? '0 0 0 0' : undefined,
-              justifyContent: 'center',
-            }}
-          >
-            <div style={{
-              ...styles.scoreDiff,
-              fontSize: isMobile ? '18px' : styles.scoreDiff.fontSize,
-              color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text
-            }}>
-              {scoreDiff !== 0 ? scoreDiff : "0"}
+          {/* Only show score diff here on desktop */}
+          {!isMobile && (
+            <div
+              style={{
+                ...styles.scoreDivider,
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: styles.scoreDivider.gap,
+                justifyContent: 'center',
+              }}
+            >
+              {ScoreDiffDisplay}
+              <div style={{
+                ...styles.dividerLine,
+                width: '100%',
+                height: styles.dividerLine.height,
+                backgroundColor: COLORS.textSecondary,
+              }}></div>
             </div>
-            <div style={{
-              ...styles.dividerLine,
-              width: isMobile ? '1px' : '100%',
-              height: isMobile ? '32px' : styles.dividerLine.height,
-              backgroundColor: COLORS.textSecondary,
-            }}></div>
-          </div>
+          )}
           <button
             style={{
               ...styles.teamDisplay,
@@ -292,22 +316,32 @@ export function ScoreBoard({
       </div>
 
       <div style={styles.lineInfo}>
-        <div style={styles.lineInfoLeft}>
+        <div style={{ ...styles.lineInfoLeft, flexWrap: isMobile ? 'wrap' : undefined }}>
           <span style={styles.lineInfoText}>Point {pointNumber}</span>
           {genderRatioMode === 'ABBA' && (
-            <div style={styles.patternDisplay}>
-              {['A', 'B', 'B', 'A'].map((p, i) => (
-                <div key={i} style={{ ...styles.patternItem, ...(patternIndex === i ? styles.patternItemActive : {}) }}>
-                  <span style={styles.patternText}>{p}</span>
-                </div>
-              ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : styles.patternDisplay.gap }}>
+              <div style={styles.patternDisplay}>
+                {['A', 'B', 'B', 'A'].map((p, i) => (
+                  <div key={i} style={{ ...styles.patternItem, ...(patternIndex === i ? styles.patternItemActive : {}) }}>
+                    <span style={styles.patternText}>{p}</span>
+                  </div>
+                ))}
+              </div>
+              {/* On mobile, show score diff here */}
+              {isMobile && ScoreDiffDisplay}
             </div>
           )}
         </div>
       </div>
-      
-      <div style={styles.lineDisplay}>
-        <div style={styles.lineSection}>
+      {/* Team columns always side by side, allow horizontal scroll on mobile */}
+      <div style={{
+        ...styles.lineDisplay,
+        flexWrap: 'nowrap',
+        overflowX: isMobile ? 'auto' : 'visible',
+        minWidth: isMobile ? 0 : undefined,
+        gap: isMobile ? '8px' : styles.lineDisplay.gap,
+      }}>
+        <div style={{ ...styles.lineSection, minWidth: isMobile ? '180px' : undefined }}>
           <h3 style={styles.lineTitle}>Current Line</h3>
           <div style={styles.playerListVertical}>
             {currentLine.map((player: Player) => (
@@ -317,8 +351,7 @@ export function ScoreBoard({
             ))}
           </div>
         </div>
-
-        <div style={styles.lineSection}>
+        <div style={{ ...styles.lineSection, minWidth: isMobile ? '180px' : undefined }}>
           <h3 style={styles.lineTitle}>Next Line</h3>
           <div style={styles.playerListVertical}>
             {nextLine.map((player: Player) => (
