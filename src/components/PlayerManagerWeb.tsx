@@ -379,6 +379,7 @@ const styles: Record<string, React.CSSProperties> = {
     right: 0,
     zIndex: 1000,
     pointerEvents: 'none',
+    paddingBottom: 'env(safe-area-inset-bottom)',
   },
   slidePanel: {
     position: 'relative',
@@ -389,6 +390,8 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     pointerEvents: 'auto',
     boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
+    maxHeight: 'calc(100vh - env(safe-area-inset-bottom))',
+    width: '100%',
   },
   dragHandle: {
     height: '24px',
@@ -410,9 +413,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   panelContent: {
     padding: '0px 20px 20px 20px', // even tighter top padding
-    maxHeight: '70vh',
+    maxHeight: 'calc(70vh - 24px)', // Account for handle height
     overflowY: 'auto',
-    backgroundColor: 'rgba(45, 45, 45, )', // keep content area slightly translucent
+    overflowX: 'hidden', // Prevent horizontal scroll
+    backgroundColor: '#1d1d1d', // match ScoreBoard background
+    WebkitOverflowScrolling: 'touch',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   managerWrapper: {
     overflow: 'hidden',
@@ -496,9 +503,15 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '12px',
     padding: '20px',
     border: `1px solid ${COLORS.border}`,
+    width: '100%',
+    boxSizing: 'border-box',
+    overflowX: 'hidden',
+    flexWrap: 'nowrap',
   },
   rosterColumn: {
     flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
   },
   rosterTitle: {
     color: COLORS.text,
