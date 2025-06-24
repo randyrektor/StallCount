@@ -390,9 +390,9 @@ export function ScoreBoard({
             )}
           </div>
         </div>
-        {/* On mobile, show scoreDiff below, right-aligned under ABBA */}
+        {/* On mobile, show scoreDiff below, centered under the row */}
         {isMobile && genderRatioMode === 'ABBA' && (
-          <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginTop: 4 }}>
             <div style={{
               ...styles.scoreDiff,
               fontSize: '16px',
