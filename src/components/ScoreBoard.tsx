@@ -357,10 +357,14 @@ export function ScoreBoard({
       </div>
 
       <div style={styles.lineInfo}>
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <span style={styles.lineInfoText}>Point {pointNumber}</span>
-          {genderRatioMode === 'ABBA' && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+          {/* Left: Point X */}
+          <div style={{ minWidth: 70, textAlign: 'left' }}>
+            <span style={styles.lineInfoText}>Point {pointNumber}</span>
+          </div>
+          {/* Center: ABBA pattern, perfectly centered */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            {genderRatioMode === 'ABBA' && (
               <div style={styles.patternDisplay}>
                 {['A', 'B', 'B', 'A'].map((p, i) => (
                   <div key={i} style={{ ...styles.patternItem, ...(patternIndex === i ? styles.patternItemActive : {}) }}>
@@ -368,20 +372,24 @@ export function ScoreBoard({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-          {isMobile && genderRatioMode === 'ABBA' && (
-            <div style={{
-              ...styles.scoreDiff,
-              fontSize: '16px',
-              color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
-              marginLeft: 'auto',
-              marginRight: 0,
-              alignSelf: 'center',
-            }}>
-              {scoreDiff !== 0 ? scoreDiff : '0'}
-            </div>
-          )}
+            )}
+          </div>
+          {/* Right: scoreDiff (only on mobile) */}
+          <div style={{ minWidth: 36, textAlign: 'right' }}>
+            {isMobile && genderRatioMode === 'ABBA' && (
+              <div style={{
+                ...styles.scoreDiff,
+                fontSize: '16px',
+                color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+                marginLeft: 'auto',
+                marginRight: 0,
+                alignSelf: 'center',
+                display: 'inline-block',
+              }}>
+                {scoreDiff !== 0 ? scoreDiff : '0'}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {/* Team columns always scale, never scroll */}
