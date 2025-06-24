@@ -4,6 +4,7 @@ import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } 
 import { CSS } from '@dnd-kit/utilities';
 import { Player } from '../types';
 import { commonStyles, playerCardStyle } from '../styles/common';
+import { GradientBlobs } from './ScoreBoard';
 
 // Modern color palette (matching ScoreBoard)
 const COLORS = {
@@ -23,6 +24,12 @@ const COLORS = {
   section: '#383838',
 };
 
+// Blobs for PlayerManager only
+const PLAYER_MANAGER_BLOB_COLORS = {
+  blue: 'rgba(74, 144, 226, 0.18)',
+  pink: 'rgba(232, 62, 140, 0.18)',
+};
+
 interface PlayerManagerWebProps {
   roster: Player[];
   onRosterChange: (newRoster: Player[]) => void;
@@ -34,28 +41,63 @@ interface PlayerManagerWebProps {
 function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLongPress }: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
   const longPressTimeout = useRef<NodeJS.Timeout | null>(null);
+  const hasMoved = useRef(false);
+  const startPosition = useRef<{ x: number; y: number } | null>(null);
 
   // Handlers for long-press
   const handlePointerDown = (e: React.PointerEvent | React.TouchEvent) => {
     if (isEditMode) return;
+    
+    // Reset movement tracking
+    hasMoved.current = false;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    startPosition.current = { x: clientX, y: clientY };
+    
     longPressTimeout.current = setTimeout(() => {
-      if (onLongPress) onLongPress();
+      // Only trigger long-press if we haven't moved significantly
+      if (!hasMoved.current && onLongPress) {
+        onLongPress();
+      }
     }, 800);
   };
+
+  const handlePointerMove = (e: React.PointerEvent | React.TouchEvent) => {
+    if (!startPosition.current || isEditMode) return;
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    const deltaX = Math.abs(clientX - startPosition.current.x);
+    const deltaY = Math.abs(clientY - startPosition.current.y);
+    
+    // If moved more than 10px in any direction, cancel long-press
+    if (deltaX > 10 || deltaY > 10) {
+      hasMoved.current = true;
+      if (longPressTimeout.current) {
+        clearTimeout(longPressTimeout.current);
+        longPressTimeout.current = null;
+      }
+    }
+  };
+
   const handlePointerUp = () => {
     if (longPressTimeout.current) {
       clearTimeout(longPressTimeout.current);
       longPressTimeout.current = null;
     }
+    startPosition.current = null;
   };
 
   return (
     <div
       style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onTouchStart={handlePointerDown}
+      onTouchMove={handlePointerMove}
       onTouchEnd={handlePointerUp}
       onTouchCancel={handlePointerUp}
     >
@@ -68,11 +110,10 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
           ...playerCardStyle,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          position: 'relative',
           background: player.gender === 'O'
             ? (isPending ? 'rgba(74,144,226,0.3)' : '#4a90e2')
             : (isPending ? 'rgba(232,62,140,0.3)' : '#e83e8c'),
-          position: 'relative',
           opacity: isDragging ? 0.8 : 1,
           transform: CSS.Transform.toString(transform),
           transition,
@@ -82,11 +123,26 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
         {...attributes}
         {...listeners}
       >
-        <span style={{ ...styles.playerName }}>{player.name}</span>
+        {/* Centered name container */}
+        <span style={{
+          ...styles.playerName,
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          margin: 'auto',
+          textAlign: 'center',
+          width: '100%',
+          pointerEvents: 'none',
+        }}>{player.name}</span>
         {isPending && <span style={styles.pendingBadge}>Pending</span>}
+        {/* Absolutely positioned delete button */}
         <button
           style={{
             ...styles.deleteButton,
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
             opacity: isEditMode ? 1 : 0,
             pointerEvents: isEditMode ? 'auto' : 'none',
             transition: 'opacity 0.2s',
@@ -98,6 +154,45 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
           ×
         </button>
       </div>
+    </div>
+  );
+}
+
+// Utility to detect mobile (must be outside the component for styles)
+const isMobile = typeof window !== 'undefined' && window.innerWidth <= 600;
+
+function PlayerManagerBlobs() {
+  return (
+    <div style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none',
+      zIndex: 0,
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        position: 'absolute',
+        width: '400px',
+        height: '400px',
+        background: PLAYER_MANAGER_BLOB_COLORS.blue,
+        borderRadius: '50%',
+        filter: 'blur(80px)',
+        top: '8%',
+        left: '2',
+      }} />
+      <div style={{
+        position: 'absolute',
+        width: '260px',
+        height: '260px',
+        background: PLAYER_MANAGER_BLOB_COLORS.pink,
+        borderRadius: '50%',
+        filter: 'blur(80px)',
+        top: '25%',
+        right: '5%',
+      }} />
     </div>
   );
 }
@@ -115,8 +210,8 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
   const panelRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { delay: 100, tolerance: 10 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 10 } })
+    useSensor(PointerSensor, { activationConstraint: { delay: 850, tolerance: 10 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 850, tolerance: 10 } })
   );
 
   // Split roster into open and women
@@ -215,6 +310,16 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     onRosterChange(assignNumbers(newRoster));
   }
 
+  // Handle drag start to cancel any pending long-press
+  function handlePlayerDragStart(event: any) {
+    // Cancel any pending long-press when drag actually starts
+    // This is a safety measure in case the movement detection didn't catch it
+    if (event.active) {
+      // The long-press timeout will be cleared by the movement detection
+      // but this provides an additional safety net
+    }
+  }
+
   function handleDeletePlayer(playerToDelete: Player) {
     // Remove the player from the roster
     const newRoster = roster.filter(p => p.uuid !== playerToDelete.uuid);
@@ -254,6 +359,9 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
   // Handler to exit edit mode
   const handleDone = () => setIsEditMode(false);
 
+  // Utility to detect mobile
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 600;
+
   return (
     <div style={styles.slidePanelContainer}>
       {isVisible && (
@@ -270,6 +378,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
           zIndex: 1001, // Ensure panel is above the backdrop
         }}
       >
+        <PlayerManagerBlobs />
         <div 
           style={{
             ...styles.dragHandle,
@@ -344,7 +453,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
           </div>
 
           <div style={styles.rosterContainer}>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handlePlayerDragEnd(e, 'O')}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handlePlayerDragStart} onDragEnd={(e) => handlePlayerDragEnd(e, 'O')}>
               <div style={styles.rosterColumn}>
                 <h3 style={styles.rosterTitle}>Open Players</h3>
                 <SortableContext items={openPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
@@ -354,7 +463,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                 </SortableContext>
               </div>
             </DndContext>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handlePlayerDragEnd(e, 'W')}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handlePlayerDragStart} onDragEnd={(e) => handlePlayerDragEnd(e, 'W')}>
               <div style={styles.rosterColumn}>
                 <h3 style={styles.rosterTitle}>Women Players</h3>
                 <SortableContext items={womenPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
@@ -385,7 +494,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   slidePanel: {
     position: 'relative',
-    backgroundColor: '#2d2d2d', // fully opaque for the panel shell
+    backgroundColor: 'rgba(29,29,29,0.8)', // slightly transparent to show blobs
     borderTopLeftRadius: '16px',
     borderTopRightRadius: '16px',
     overflow: 'hidden',
@@ -396,7 +505,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
   },
   dragHandle: {
-    height: '24px',
+    height: isMobile ? '40px' : '24px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -414,7 +523,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '2px',
   },
   panelContent: {
-    padding: '0px 20px 20px 20px', // even tighter top padding
+    padding: '18px 12px',
     maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-bottom))', // Full height minus handle and safe area
     overflowY: 'auto',
     overflowX: 'hidden', // Prevent horizontal scroll
@@ -503,7 +612,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '12px',
     backgroundColor: 'rgba(45, 45, 45, 0.5)',
     borderRadius: '12px',
-    padding: '20px',
+    padding: '18px 12px',
     border: `1px solid ${COLORS.border}`,
     width: '100%',
     boxSizing: 'border-box',
@@ -643,7 +752,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '0',
     backgroundColor: 'rgba(45, 45, 45, 0.5)',
     borderRadius: '12px',
-    padding: '10px',
+    padding: '18px 12px',
     marginBottom: '10px',
     border: `1px solid ${COLORS.border}`,
   },
