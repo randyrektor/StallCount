@@ -357,10 +357,10 @@ export function ScoreBoard({
       </div>
 
       <div style={styles.lineInfo}>
-        <div style={{ ...styles.lineInfoLeft, flexWrap: isMobile ? 'wrap' : undefined, width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
           <span style={styles.lineInfoText}>Point {pointNumber}</span>
           {genderRatioMode === 'ABBA' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : styles.patternDisplay.gap, width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
               <div style={styles.patternDisplay}>
                 {['A', 'B', 'B', 'A'].map((p, i) => (
                   <div key={i} style={{ ...styles.patternItem, ...(patternIndex === i ? styles.patternItemActive : {}) }}>
@@ -368,19 +368,18 @@ export function ScoreBoard({
                   </div>
                 ))}
               </div>
-              {/* On mobile, show score diff here, right-justified */}
-              {isMobile && (
-                <div style={{
-                  ...styles.scoreDiff,
-                  fontSize: '16px',
-                  color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
-                  marginLeft: 'auto',
-                  marginRight: 0,
-                  alignSelf: 'flex-end',
-                }}>
-                  {scoreDiff !== 0 ? scoreDiff : '0'}
-                </div>
-              )}
+            </div>
+          )}
+          {isMobile && genderRatioMode === 'ABBA' && (
+            <div style={{
+              ...styles.scoreDiff,
+              fontSize: '16px',
+              color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+              marginLeft: 'auto',
+              marginRight: 0,
+              alignSelf: 'center',
+            }}>
+              {scoreDiff !== 0 ? scoreDiff : '0'}
             </div>
           )}
         </div>
