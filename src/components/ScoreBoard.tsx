@@ -291,8 +291,6 @@ export function ScoreBoard({
               ...styles.undoButton,
               opacity: scoreHistory.length === 0 ? 0.5 : 1,
               cursor: scoreHistory.length === 0 ? 'not-allowed' : 'pointer',
-              padding: isMobile ? '4px 8px' : styles.undoButton.padding,
-              fontSize: isMobile ? '10px' : styles.undoButton.fontSize,
             }}
             onClick={onUndo}
             disabled={scoreHistory.length === 0}
@@ -302,8 +300,6 @@ export function ScoreBoard({
           <button
             style={{
               ...styles.settingsButton,
-              padding: isMobile ? '4px 8px' : styles.settingsButton.padding,
-              fontSize: isMobile ? '10px' : styles.settingsButton.fontSize,
             }}
             onClick={() => setSettingsVisible(true)}
           >
@@ -337,8 +333,10 @@ export function ScoreBoard({
             }}>{team1Name}</h2>
             <h1 style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team1Score}</h1>
           </button>
-          {/* Score diff always visible and styled */}
-          <div style={scoreDiffStyle}>{scoreDiff !== 0 ? scoreDiff : '0'}</div>
+          {/* Score diff only visible between scores on non-mobile */}
+          {!isMobile && (
+            <div style={scoreDiffStyle}>{scoreDiff !== 0 ? scoreDiff : '0'}</div>
+          )}
           <button
             style={teamScoreButtonStyle}
             data-team="team2"
@@ -359,10 +357,10 @@ export function ScoreBoard({
       </div>
 
       <div style={styles.lineInfo}>
-        <div style={{ ...styles.lineInfoLeft, flexWrap: isMobile ? 'wrap' : undefined }}>
+        <div style={{ ...styles.lineInfoLeft, flexWrap: isMobile ? 'wrap' : undefined, width: '100%' }}>
           <span style={styles.lineInfoText}>Point {pointNumber}</span>
           {genderRatioMode === 'ABBA' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : styles.patternDisplay.gap }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : styles.patternDisplay.gap, width: '100%' }}>
               <div style={styles.patternDisplay}>
                 {['A', 'B', 'B', 'A'].map((p, i) => (
                   <div key={i} style={{ ...styles.patternItem, ...(patternIndex === i ? styles.patternItemActive : {}) }}>
@@ -370,15 +368,15 @@ export function ScoreBoard({
                   </div>
                 ))}
               </div>
-              {/* On mobile, show score diff here */}
+              {/* On mobile, show score diff here, right-justified */}
               {isMobile && (
                 <div style={{
                   ...styles.scoreDiff,
-                  fontSize: isMobile ? '16px' : styles.scoreDiff.fontSize,
+                  fontSize: '16px',
                   color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
-                  marginLeft: isMobile ? 8 : 0,
-                  marginRight: isMobile ? 0 : 0,
-                  alignSelf: isMobile ? 'center' : undefined,
+                  marginLeft: 'auto',
+                  marginRight: 0,
+                  alignSelf: 'flex-end',
                 }}>
                   {scoreDiff !== 0 ? scoreDiff : '0'}
                 </div>

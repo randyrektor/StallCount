@@ -40,7 +40,7 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
     if (isEditMode) return;
     longPressTimeout.current = setTimeout(() => {
       if (onLongPress) onLongPress();
-    }, 500);
+    }, 800);
   };
   const handlePointerUp = () => {
     if (longPressTimeout.current) {
