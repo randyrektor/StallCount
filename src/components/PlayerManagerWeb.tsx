@@ -297,7 +297,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
             <div style={styles.inputGenderRow}>
               <input
                 ref={inputRef}
-                style={styles.input}
+                style={{ ...styles.input, minWidth: 0, flex: 1 }}
                 value={newPlayer.name}
                 onChange={e => setNewPlayer(prev => ({ ...prev, name: e.target.value }))}
                 onKeyPress={(e) => e.key === 'Enter' && handleAddPlayer()}
@@ -307,12 +307,14 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                 <button
                   style={{ ...styles.genderButton, ...(newPlayer.gender === 'O' ? styles.genderButtonActiveOpen : {}) }}
                   onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'O' }))}
+                  aria-label="Open"
                 >
                   Open
                 </button>
                 <button
                   style={{ ...styles.genderButton, ...(newPlayer.gender === 'W' ? styles.genderButtonActiveWomen : {}) }}
                   onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'W' }))}
+                  aria-label="Women"
                 >
                   Women
                 </button>
@@ -390,7 +392,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     pointerEvents: 'auto',
     boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
-    maxHeight: 'calc(100vh - env(safe-area-inset-bottom))',
+    maxHeight: 'calc(100dvh - env(safe-area-inset-bottom))', // Use dynamic viewport height
     width: '100%',
   },
   dragHandle: {
@@ -413,7 +415,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   panelContent: {
     padding: '0px 20px 20px 20px', // even tighter top padding
-    maxHeight: 'calc(70vh - 24px)', // Account for handle height
+    maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-bottom))', // Full height minus handle and safe area
     overflowY: 'auto',
     overflowX: 'hidden', // Prevent horizontal scroll
     backgroundColor: '#1d1d1d', // match ScoreBoard background
