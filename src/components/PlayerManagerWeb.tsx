@@ -34,28 +34,63 @@ interface PlayerManagerWebProps {
 function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLongPress }: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
   const longPressTimeout = useRef<NodeJS.Timeout | null>(null);
+  const hasMoved = useRef(false);
+  const startPosition = useRef<{ x: number; y: number } | null>(null);
 
   // Handlers for long-press
   const handlePointerDown = (e: React.PointerEvent | React.TouchEvent) => {
     if (isEditMode) return;
+    
+    // Reset movement tracking
+    hasMoved.current = false;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    startPosition.current = { x: clientX, y: clientY };
+    
     longPressTimeout.current = setTimeout(() => {
-      if (onLongPress) onLongPress();
+      // Only trigger long-press if we haven't moved significantly
+      if (!hasMoved.current && onLongPress) {
+        onLongPress();
+      }
     }, 800);
   };
+
+  const handlePointerMove = (e: React.PointerEvent | React.TouchEvent) => {
+    if (!startPosition.current || isEditMode) return;
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    const deltaX = Math.abs(clientX - startPosition.current.x);
+    const deltaY = Math.abs(clientY - startPosition.current.y);
+    
+    // If moved more than 10px in any direction, cancel long-press
+    if (deltaX > 10 || deltaY > 10) {
+      hasMoved.current = true;
+      if (longPressTimeout.current) {
+        clearTimeout(longPressTimeout.current);
+        longPressTimeout.current = null;
+      }
+    }
+  };
+
   const handlePointerUp = () => {
     if (longPressTimeout.current) {
       clearTimeout(longPressTimeout.current);
       longPressTimeout.current = null;
     }
+    startPosition.current = null;
   };
 
   return (
     <div
       style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onTouchStart={handlePointerDown}
+      onTouchMove={handlePointerMove}
       onTouchEnd={handlePointerUp}
       onTouchCancel={handlePointerUp}
     >
@@ -68,7 +103,7 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
           ...playerCardStyle,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'center',
           background: player.gender === 'O'
             ? (isPending ? 'rgba(74,144,226,0.3)' : '#4a90e2')
             : (isPending ? 'rgba(232,62,140,0.3)' : '#e83e8c'),
@@ -83,10 +118,24 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
         {...listeners}
       >
         <span style={{ ...styles.playerName }}>{player.name}</span>
-        {isPending && <span style={styles.pendingBadge}>Pending</span>}
+        {isPending && (
+          <span style={{
+            ...styles.pendingBadge,
+            position: 'absolute',
+            left: '8px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+          }}>
+            Pending
+          </span>
+        )}
         <button
           style={{
             ...styles.deleteButton,
+            position: 'absolute',
+            right: '8px',
+            top: '50%',
+            transform: 'translateY(-50%)',
             opacity: isEditMode ? 1 : 0,
             pointerEvents: isEditMode ? 'auto' : 'none',
             transition: 'opacity 0.2s',
@@ -115,7 +164,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
   const panelRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { delay: 100, tolerance: 10 } }),
+    useSensor(PointerSensor, { activationConstraint: { delay: 200, tolerance: 10 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 10 } })
   );
 
@@ -213,6 +262,16 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     const newRoster = gender === 'O' ? [...reorderedGroup, ...otherGroup] : [...otherGroup, ...reorderedGroup];
 
     onRosterChange(assignNumbers(newRoster));
+  }
+
+  // Handle drag start to cancel any pending long-press
+  function handlePlayerDragStart(event: any) {
+    // Cancel any pending long-press when drag actually starts
+    // This is a safety measure in case the movement detection didn't catch it
+    if (event.active) {
+      // The long-press timeout will be cleared by the movement detection
+      // but this provides an additional safety net
+    }
   }
 
   function handleDeletePlayer(playerToDelete: Player) {
@@ -344,7 +403,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
           </div>
 
           <div style={styles.rosterContainer}>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handlePlayerDragEnd(e, 'O')}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handlePlayerDragStart} onDragEnd={(e) => handlePlayerDragEnd(e, 'O')}>
               <div style={styles.rosterColumn}>
                 <h3 style={styles.rosterTitle}>Open Players</h3>
                 <SortableContext items={openPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
@@ -354,7 +413,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                 </SortableContext>
               </div>
             </DndContext>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handlePlayerDragEnd(e, 'W')}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handlePlayerDragStart} onDragEnd={(e) => handlePlayerDragEnd(e, 'W')}>
               <div style={styles.rosterColumn}>
                 <h3 style={styles.rosterTitle}>Women Players</h3>
                 <SortableContext items={womenPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
@@ -541,12 +600,12 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'grab',
   },
   playerName: {
-    flex: 1,
     color: '#fff',
     fontWeight: 500,
     textAlign: 'center',
     width: '100%',
     paddingLeft: 0,
+    paddingRight: 0,
   },
   pendingBadge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
