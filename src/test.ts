@@ -9,7 +9,8 @@ import {
   getGenderBreakdown, 
   getWrapped,
   addPlayersToQueue,
-  removePlayersFromQueue
+  removePlayersFromQueue,
+  ensureEnoughPlayers
 } from './utils/lineRotation';
 
 // Test data
@@ -485,6 +486,42 @@ function runAllTests() {
     const scoreHistory = [{ team1: 4, team2: 3 }];
     const undoButtonDisabled = scoreHistory.length === 0;
     return undoButtonDisabled === false;
+  })) passedTests++;
+
+  // Test the new edge case fixes
+  console.log('\n📋 Testing edge case fixes:');
+
+  totalTests++;
+  if (runTest('getWrapped prevents glitching when not enough players', () => {
+    const queue = [mockPlayers[0], mockPlayers[1]]; // Only 2 players
+    const result = getWrapped(queue, 0, 4); // Need 4 players
+    // Should return all available players instead of wrapping
+    return result.length === 2 && result[0] === mockPlayers[0] && result[1] === mockPlayers[1];
+  })) passedTests++;
+
+  totalTests++;
+  if (runTest('ensureEnoughPlayers fills missing players from other gender', () => {
+    const openQueue = [mockPlayers[1], mockPlayers[2]]; // 2 open players
+    const womenQueue = [mockPlayers[0], mockPlayers[3], mockPlayers[4], mockPlayers[6]]; // 4 women players
+    const pattern = { men: 4, women: 3 }; // Need 4 men, 3 women
+    
+    const result = ensureEnoughPlayers(openQueue, womenQueue, pattern);
+    
+    // Should have 4 open players (2 original + 2 from women)
+    // Should have 3 women players (original 4, but pattern only needs 3)
+    return result.openQueue.length === 4 && result.womenQueue.length === 3;
+  })) passedTests++;
+
+  totalTests++;
+  if (runTest('ensureEnoughPlayers handles case where both genders are short', () => {
+    const openQueue = [mockPlayers[1]]; // 1 open player
+    const womenQueue = [mockPlayers[0]]; // 1 woman player
+    const pattern = { men: 4, women: 3 }; // Need 4 men, 3 women
+    
+    const result = ensureEnoughPlayers(openQueue, womenQueue, pattern);
+    
+    // Should return original queues since we can\'t fill from the other gender
+    return result.openQueue.length === 1 && result.womenQueue.length === 1;
   })) passedTests++;
 
   // Final results

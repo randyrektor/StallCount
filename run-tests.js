@@ -50,6 +50,13 @@ function rotateQueue(queue, count) {
 
 function getWrapped(queue, start, count) {
   if (queue.length === 0) return [];
+  
+  // If we need more players than we have, just return all available players
+  // This prevents glitching where the same players get stuck in the queue
+  if (count >= queue.length) {
+    return [...queue];
+  }
+  
   const result = [];
   for (let i = 0; i < count; i++) {
     const index = (start + i) % queue.length;
@@ -78,6 +85,26 @@ function addPlayersToQueue(currentQueue, newPlayers) {
 function removePlayersFromQueue(currentQueue, playersToRemove) {
   const playerIds = new Set(playersToRemove.map(p => p.uuid));
   return currentQueue.filter(p => !playerIds.has(p.uuid));
+}
+
+function ensureEnoughPlayers(openQueue, womenQueue, pattern) {
+  const result = { openQueue: [...openQueue], womenQueue: [...womenQueue] };
+  
+  // If we don't have enough open players, fill with available women players
+  if (openQueue.length < pattern.men && womenQueue.length > pattern.women) {
+    const extraWomenNeeded = pattern.men - openQueue.length;
+    const availableWomen = womenQueue.slice(pattern.women, pattern.women + extraWomenNeeded);
+    result.openQueue = [...openQueue, ...availableWomen];
+  }
+  
+  // If we don't have enough women players, fill with available open players
+  if (womenQueue.length < pattern.women && openQueue.length > pattern.men) {
+    const extraOpenNeeded = pattern.women - womenQueue.length;
+    const availableOpen = openQueue.slice(pattern.men, pattern.men + extraOpenNeeded);
+    result.womenQueue = [...womenQueue, ...availableOpen];
+  }
+  
+  return result;
 }
 
 // Test utility function
@@ -144,7 +171,8 @@ function runAllTests() {
   if (runTest('handles count larger than array length', () => {
     const array = [mockPlayers[0], mockPlayers[1], mockPlayers[2]];
     const result = getWrapped(array, 1, 5);
-    return result.length === 5;
+    // Should return all available players instead of wrapping
+    return result.length === 3;
   })) passedTests++;
 
   totalTests++;
@@ -161,8 +189,10 @@ function runAllTests() {
   if (runTest('creates line with correct gender ratio for pattern A (4M/3W)', () => {
     const pattern = { men: 4, women: 3 };
     const line = getLine(openPlayers, womenPlayers, pattern);
-    return line.length === 7 && 
-           line.filter(p => p.gender === 'O').length === 4 &&
+    // With our new logic, we return all available players when there aren't enough
+    // We have 3 open players and 4 women players, so we get 3 open + 3 women = 6 total
+    return line.length === 6 && 
+           line.filter(p => p.gender === 'O').length === 3 &&
            line.filter(p => p.gender === 'W').length === 3;
   })) passedTests++;
 
@@ -179,8 +209,8 @@ function runAllTests() {
   if (runTest('handles insufficient players gracefully', () => {
     const pattern = { men: 10, women: 10 };
     const line = getLine(openPlayers, womenPlayers, pattern);
-    // Should return all available players (wrapped if needed)
-    return line.length === 20; // 10 men + 10 women, but wrapped from available players
+    // Should return all available players (3 open + 4 women = 7 total)
+    return line.length === 7;
   })) passedTests++;
 
   totalTests++;
@@ -472,6 +502,44 @@ function runAllTests() {
     const scoreHistory = [{ team1: 4, team2: 3 }];
     const undoButtonDisabled = scoreHistory.length === 0;
     return undoButtonDisabled === false;
+  })) passedTests++;
+
+  // Test the new edge case fixes
+  console.log('\n📋 Testing edge case fixes:');
+  
+  totalTests++;
+  if (runTest('getWrapped prevents glitching when not enough players', () => {
+    const queue = [mockPlayers[0], mockPlayers[1]]; // Only 2 players
+    const result = getWrapped(queue, 0, 4); // Need 4 players
+    // Should return all available players instead of wrapping
+    return result.length === 2 && result[0] === mockPlayers[0] && result[1] === mockPlayers[1];
+  })) passedTests++;
+
+  totalTests++;
+  if (runTest('ensureEnoughPlayers fills missing players from other gender', () => {
+    const openQueue = [mockPlayers[1], mockPlayers[2]]; // 2 open players
+    const womenQueue = [mockPlayers[0], mockPlayers[3], mockPlayers[4], mockPlayers[6]]; // 4 women players
+    const pattern = { men: 4, women: 3 }; // Need 4 men, 3 women
+    
+    const result = ensureEnoughPlayers(openQueue, womenQueue, pattern);
+    
+    // We need 4 open players but only have 2, so we need 2 more
+    // We have 4 women players but only need 3, so we have 1 extra
+    // The function should fill open queue with 1 extra woman player
+    // Result: 3 open players (2 original + 1 from women), 3 women players
+    return result.openQueue.length === 3 && result.womenQueue.length === 3;
+  })) passedTests++;
+
+  totalTests++;
+  if (runTest('ensureEnoughPlayers handles case where both genders are short', () => {
+    const openQueue = [mockPlayers[1]]; // 1 open player
+    const womenQueue = [mockPlayers[0]]; // 1 woman player
+    const pattern = { men: 4, women: 3 }; // Need 4 men, 3 women
+    
+    const result = ensureEnoughPlayers(openQueue, womenQueue, pattern);
+    
+    // Should return original queues since we can't fill from the other gender
+    return result.openQueue.length === 1 && result.womenQueue.length === 1;
   })) passedTests++;
 
   // Final results

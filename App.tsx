@@ -212,8 +212,13 @@ export default function App() {
 
   // Calculate current queues based on rotation
   const currentPattern = getPattern(lineIndex);
-  const currentOpenQueue = getWrapped(masterOpenQueue, openIndex, currentPattern.men);
-  const currentWomanQueue = getWrapped(masterWomenQueue, womenIndex, currentPattern.women);
+  
+  // Normalize indices to be within queue bounds
+  const normalizedOpenIndex = masterOpenQueue.length > 0 ? openIndex % masterOpenQueue.length : 0;
+  const normalizedWomenIndex = masterWomenQueue.length > 0 ? womenIndex % masterWomenQueue.length : 0;
+  
+  const currentOpenQueue = getWrapped(masterOpenQueue, normalizedOpenIndex, currentPattern.men);
+  const currentWomanQueue = getWrapped(masterWomenQueue, normalizedWomenIndex, currentPattern.women);
 
   function getWrapped<T>(queue: T[], start: number, count: number): T[] {
     if (queue.length === 0) return [];
@@ -325,8 +330,16 @@ export default function App() {
   };
 
   const onRosterChange = (newRoster: Player[]) => {
+    console.log('=== onRosterChange Debug ===');
+    console.log('New roster:', newRoster.map(p => p.name));
+    console.log('Current masterOpenQueue:', masterOpenQueue.map(p => p.name));
+    
     const newRosterIds = new Set(newRoster.map(p => p.uuid));
     const removedPlayers = roster.filter(p => !newRosterIds.has(p.uuid));
+    const addedPlayers = newRoster.filter(p => !roster.some(rp => rp.uuid === p.uuid));
+    
+    console.log('Removed players:', removedPlayers.map(p => p.name));
+    console.log('Added players:', addedPlayers.map(p => p.name));
   
     let nextMasterOpenQueue = [...masterOpenQueue];
     let nextMasterWomenQueue = [...masterWomenQueue];
@@ -391,8 +404,11 @@ export default function App() {
           }
         }
       });
+    } else if (addedPlayers.length > 0) {
+      // This is a late arrival - the player was already added to the queue in handleLateArrival
+      // We don't need to do anything here to preserve the queue order
     } else {
-      // This is a re-order, not a removal.
+      // This is a re-order (drag and drop), not a removal or addition.
       const stillPendingIds = new Set(pendingPlayers.map(p => p.uuid));
       const activePlayers = newRoster.filter(p => !stillPendingIds.has(p.uuid));
       nextMasterOpenQueue = activePlayers.filter(p => p.gender === 'O');
@@ -411,19 +427,117 @@ export default function App() {
 
   const handleLateArrival = (player: Player) => {
     const tempRoster = assignNumbers([...roster, player]);
-    const openWithNew = tempRoster.filter(p => p.gender === 'O');
-    const womenWithNew = tempRoster.filter(p => p.gender === 'W');
     
-    const lineWithNewPlayer = getLine(openWithNew, womenWithNew, getPattern(lineIndex), openIndex, womenIndex);
-    const wouldBeInCurrentLine = lineWithNewPlayer.some(p => p.uuid === player.uuid);
+    const currentPattern = getPattern(lineIndex);
+    
+    // Check if adding this player to the current queue would put them in the current line
+    const simulatedOpenQueue = player.gender === 'O' ? [...masterOpenQueue, player] : masterOpenQueue;
+    const simulatedWomenQueue = player.gender === 'W' ? [...masterWomenQueue, player] : masterWomenQueue;
+    
+    // Normalize indices to be within queue bounds
+    const normalizedOpenIndex = masterOpenQueue.length > 0 ? openIndex % masterOpenQueue.length : 0;
+    const normalizedWomenIndex = masterWomenQueue.length > 0 ? womenIndex % masterWomenQueue.length : 0;
+    
+    // Use the same normalized indices for both calculations to compare the same relative positions
+    const normalizedSimulatedOpenIndex = normalizedOpenIndex;
+    const normalizedSimulatedWomenIndex = normalizedWomenIndex;
+    
+    // Get the current line without the new player
+    const currentLine = getLine(masterOpenQueue, masterWomenQueue, currentPattern, normalizedOpenIndex, normalizedWomenIndex);
+    // Get the line with the new player
+    const lineWithNewPlayer = getLine(simulatedOpenQueue, simulatedWomenQueue, currentPattern, normalizedSimulatedOpenIndex, normalizedSimulatedWomenIndex);
+    
+    // Check if the new player would displace someone from the current line
+    // A player should only go to pending if they would replace someone currently on the line
+    const currentLinePlayerIds = new Set(currentLine.map(p => p.uuid));
+    const newLinePlayerIds = new Set(lineWithNewPlayer.map(p => p.uuid));
+    
+    // Check if any player from the current line is missing from the new line
+    const displacedPlayers = currentLine.filter(p => !newLinePlayerIds.has(p.uuid));
+    const wouldDisplaceCurrentPlayer = displacedPlayers.length > 0;
+
+    // Debug logging
+    console.log('=== Late Arrival Debug ===');
+    console.log('Player:', player.name, player.gender);
+    console.log('Current pattern:', currentPattern);
+    console.log('Current open queue:', masterOpenQueue.map(p => p.name));
+    console.log('Current women queue:', masterWomenQueue.map(p => p.name));
+    console.log('Open index:', openIndex);
+    console.log('Women index:', womenIndex);
+    console.log('Normalized open index:', normalizedOpenIndex);
+    console.log('Normalized women index:', normalizedWomenIndex);
+    console.log('Normalized simulated open index:', normalizedSimulatedOpenIndex);
+    console.log('Normalized simulated women index:', normalizedSimulatedWomenIndex);
+    console.log('Simulated open queue:', simulatedOpenQueue.map(p => p.name));
+    console.log('Simulated women queue:', simulatedWomenQueue.map(p => p.name));
+    console.log('Current line without new player:', currentLine.map(p => p.name));
+    console.log('Line with new player:', lineWithNewPlayer.map(p => p.name));
+    console.log('Player in current line:', currentLine.some(p => p.uuid === player.uuid));
+    console.log('Player in new line:', lineWithNewPlayer.some(p => p.uuid === player.uuid));
+    console.log('Would displace current player:', wouldDisplaceCurrentPlayer);
+    console.log('Point number:', pointNumber);
+    console.log('========================');
 
     setRoster(tempRoster);
 
-    if (wouldBeInCurrentLine) {
+    // Check if this is the first point and we need to fill the field
+    const isFirstPoint = pointNumber === 1;
+    const currentOpenCount = masterOpenQueue.length;
+    const currentWomenCount = masterWomenQueue.length;
+    const neededOpenCount = currentPattern.men;
+    const neededWomenCount = currentPattern.women;
+    
+    // If it's the first point and we don't have enough players of this gender, 
+    // immediately add them to fill the field (don't put them in pending)
+    if (isFirstPoint) {
+      if (player.gender === 'O' && currentOpenCount < neededOpenCount) {
+        setMasterOpenQueue(simulatedOpenQueue);
+        setMasterWomenQueue(simulatedWomenQueue);
+        return;
+      } else if (player.gender === 'W' && currentWomenCount < neededWomenCount) {
+        setMasterOpenQueue(simulatedOpenQueue);
+        setMasterWomenQueue(simulatedWomenQueue);
+        return;
+      }
+    }
+
+    // Normal pending logic for non-first points or when we have enough players
+    if (wouldDisplaceCurrentPlayer) {
+        console.log('Adding to pending:', player.name);
         setPendingPlayers(prev => [...prev, player]);
     } else {
-        setMasterOpenQueue(openWithNew);
-        setMasterWomenQueue(womenWithNew);
+        console.log('Adding to queue immediately:', player.name);
+        // Append the new player to the end of the correct queue, preserving the current order
+        if (player.gender === 'O') {
+          setMasterOpenQueue(prev => {
+            const newQueue = [...prev, player];
+            console.log('New open queue after adding Peter:', newQueue.map(p => p.name));
+            
+            // Check what the current line would be with the new queue
+            const newCurrentLine = getLine(newQueue, masterWomenQueue, currentPattern, normalizedOpenIndex, normalizedWomenIndex);
+            console.log('Current line after adding Peter:', newCurrentLine.map(p => p.name));
+            
+            return newQueue;
+          });
+          // Maintain the same normalized index when adding a player
+          // If current normalized index is 3, we need to keep it at 3 with the new queue length
+          const currentNormalizedIndex = openIndex % masterOpenQueue.length;
+          const newQueueLength = masterOpenQueue.length + 1;
+          const newOpenIndex = currentNormalizedIndex;
+          setOpenIndex(newOpenIndex);
+        } else {
+          setMasterWomenQueue(prev => {
+            const newQueue = [...prev, player];
+            console.log('New women queue after adding Peter:', newQueue.map(p => p.name));
+            return newQueue;
+          });
+          // Maintain the same normalized index when adding a player
+          // If current normalized index is 3, we need to keep it at 3 with the new queue length
+          const currentNormalizedIndex = womenIndex % masterWomenQueue.length;
+          const newQueueLength = masterWomenQueue.length + 1;
+          const newWomenIndex = currentNormalizedIndex;
+          setWomenIndex(newWomenIndex);
+        }
     }
   };
 
@@ -435,11 +549,28 @@ export default function App() {
     const playersToActivate: Player[] = [];
     const playersStillPending: Player[] = [];
 
+    const currentOpenCount = masterOpenQueue.length;
+    const currentWomenCount = masterWomenQueue.length;
+    const neededOpenCount = newCurrentPattern.men;
+    const neededWomenCount = newCurrentPattern.women;
+
     pendingPlayers.forEach(p => {
         const simulatedOpen = p.gender === 'O' ? [...masterOpenQueue, p] : masterOpenQueue;
         const simulatedWomen = p.gender === 'W' ? [...masterWomenQueue, p] : masterWomenQueue;
         const lineWithPendingPlayer = getLine(simulatedOpen, simulatedWomen, newCurrentPattern, openIndex, womenIndex);
         
+        // If it's the first point and we need more players of this gender, activate immediately
+        if (pointNumber === 1) {
+          if (p.gender === 'O' && currentOpenCount < neededOpenCount) {
+            playersToActivate.push(p);
+            return;
+          } else if (p.gender === 'W' && currentWomenCount < neededWomenCount) {
+            playersToActivate.push(p);
+            return;
+          }
+        }
+        
+        // Normal logic: only activate if they wouldn't be in the current line
         if (lineWithPendingPlayer.some(lineP => lineP.uuid === p.uuid)) {
             playersStillPending.push(p);
         } else {
@@ -452,7 +583,7 @@ export default function App() {
         setMasterWomenQueue(prev => [...prev, ...playersToActivate.filter(p => p.gender === 'W')]);
         setPendingPlayers(playersStillPending);
     }
-  }, [lineIndex, openIndex, womenIndex]);
+  }, [lineIndex, openIndex, womenIndex, pointNumber]);
 
   // Add effect to handle gender ratio mode changes
   useEffect(() => {
@@ -469,6 +600,18 @@ export default function App() {
     setOpenIndex(newOpenIndex);
     setWomenIndex(newWomenIndex);
   }, [genderRatioMode]);
+
+  // Debug ScoreBoard props
+  useEffect(() => {
+    console.log('=== ScoreBoard Props Debug ===');
+    console.log('currentOpenQueue:', currentOpenQueue.map(p => p.name));
+    console.log('currentWomanQueue:', currentWomanQueue.map(p => p.name));
+    console.log('normalizedOpenIndex:', normalizedOpenIndex);
+    console.log('normalizedWomenIndex:', normalizedWomenIndex);
+    console.log('openIndex:', openIndex, 'masterOpenQueue.length:', masterOpenQueue.length);
+    console.log('normalizedOpenIndex calculation:', openIndex, '%', masterOpenQueue.length, '=', openIndex % masterOpenQueue.length);
+    console.log('========================');
+  }, [currentOpenQueue, currentWomanQueue, normalizedOpenIndex, normalizedWomenIndex, openIndex, masterOpenQueue.length]);
 
   return (
     <div style={styles.container}>
@@ -491,8 +634,8 @@ export default function App() {
           showTimers={showTimers}
           setSettingsVisible={setSettingsVisible}
           roster={roster}
-          openQueue={getWrapped(masterOpenQueue, openIndex, getPattern(lineIndex).men)}
-          womanQueue={getWrapped(masterWomenQueue, womenIndex, getPattern(lineIndex).women)}
+          openQueue={currentOpenQueue}
+          womanQueue={currentWomanQueue}
           nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
           nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
           lineHistory={lineHistory}

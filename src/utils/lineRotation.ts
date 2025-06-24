@@ -25,6 +25,13 @@ export function getLine(openQueue: Player[], womanQueue: Player[], pattern: { me
 // Helper function to get N players from a queue, wrapping if needed
 export function getWrapped<T>(queue: T[], start: number, count: number): T[] {
   if (queue.length === 0) return [];
+  
+  // If we need more players than we have, just return all available players
+  // This prevents glitching where the same players get stuck in the queue
+  if (count >= queue.length) {
+    return [...queue];
+  }
+  
   const result = [];
   for (let i = 0; i < count; i++) {
     const index = (start + i) % queue.length;
