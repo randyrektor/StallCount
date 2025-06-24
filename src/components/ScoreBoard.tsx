@@ -17,6 +17,7 @@ const COLORS = {
   scoreButtonPlus: '#2ecc71',
   border: '#404040',
   input: '#333333',
+  delete: '#e74c3c',
 };
 
 // Gradient blob colors
@@ -496,14 +497,16 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center'
   },
   settingsButton: {
-    backgroundColor: COLORS.border,
+    backgroundColor: COLORS.open,
     color: COLORS.text,
     border: 'none',
-    padding: '7px 14px',
-    borderRadius: '5.5px',
-    fontSize: '11.5px',
-    fontWeight: '600',
+    padding: '10px 20px',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontWeight: 600,
     cursor: 'pointer',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+    transition: 'background 0.2s, color 0.2s',
   },
 
   lineInfo: {
@@ -603,15 +606,16 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.5px',
   },
   undoButton: {
-    backgroundColor: COLORS.border,
+    backgroundColor: COLORS.delete,
     color: COLORS.text,
     border: 'none',
-    padding: '7px 14px',
-    borderRadius: '5.5px',
-    fontSize: '11.5px',
-    fontWeight: '600',
+    padding: '10px 20px',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontWeight: 600,
     cursor: 'pointer',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
     opacity: 1,
-    transition: 'opacity 0.2s ease',
+    transition: 'background 0.2s, color 0.2s, opacity 0.2s ease',
   },
 }; 

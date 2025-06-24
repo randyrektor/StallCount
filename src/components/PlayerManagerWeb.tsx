@@ -19,6 +19,8 @@ const COLORS = {
   add: '#2ecc71',
   border: '#404040',
   input: '#3d3d3d',
+  handle: '#666666',
+  section: '#383838',
 };
 
 interface PlayerManagerWebProps {
@@ -29,46 +31,73 @@ interface PlayerManagerWebProps {
   pendingPlayers: Player[];
 }
 
-function SortablePlayer({ player, index, isEditMode, onDelete, isPending }: any) {
+function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLongPress }: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
+  const longPressTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Handlers for long-press
+  const handlePointerDown = (e: React.PointerEvent | React.TouchEvent) => {
+    if (isEditMode) return;
+    longPressTimeout.current = setTimeout(() => {
+      if (onLongPress) onLongPress();
+    }, 500);
+  };
+  const handlePointerUp = () => {
+    if (longPressTimeout.current) {
+      clearTimeout(longPressTimeout.current);
+      longPressTimeout.current = null;
+    }
+  };
 
   return (
     <div
-      ref={setNodeRef}
-      style={{
-        ...playerCardStyle,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        background: player.gender === 'O'
-          ? (isPending ? 'rgba(74,144,226,0.3)' : '#4a90e2')
-          : (isPending ? 'rgba(232,62,140,0.3)' : '#e83e8c'),
-        marginBottom: '6px',
-        position: 'relative',
-        opacity: isDragging ? 0.8 : 1,
-        transform: CSS.Transform.toString(transform),
-        transition,
-        touchAction: 'none',
-      }}
-      {...attributes}
-      {...listeners}
+      style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onTouchStart={handlePointerDown}
+      onTouchEnd={handlePointerUp}
+      onTouchCancel={handlePointerUp}
     >
-      <span style={{ color: COLORS.textSecondary, width: 24, textAlign: 'center' }}>{index + 1}</span>
-      <span style={{ flex: 1, color: '#fff', fontWeight: 500, textAlign: 'left', paddingLeft: 8 }}>{player.name}</span>
-      {isPending && <span style={styles.pendingBadge}>Pending</span>}
-      <button
+      {/* Player number outside the card */}
+      <span style={styles.playerNumber}>{index + 1}</span>
+      <div style={{ width: 8 }} /> {/* Small gap */}
+      <div
+        ref={setNodeRef}
         style={{
-          ...styles.deleteButton,
-          opacity: isEditMode ? 1 : 0,
-          pointerEvents: isEditMode ? 'auto' : 'none',
-          transition: 'opacity 0.2s',
+          ...playerCardStyle,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: player.gender === 'O'
+            ? (isPending ? 'rgba(74,144,226,0.3)' : '#4a90e2')
+            : (isPending ? 'rgba(232,62,140,0.3)' : '#e83e8c'),
+          position: 'relative',
+          opacity: isDragging ? 0.8 : 1,
+          transform: CSS.Transform.toString(transform),
+          transition,
+          touchAction: 'none',
+          flex: 1,
         }}
-        onClick={() => onDelete(player)}
-        tabIndex={isEditMode ? 0 : -1}
-        aria-label="Remove player"
+        {...attributes}
+        {...listeners}
       >
-        ×
-      </button>
+        <span style={{ ...styles.playerName }}>{player.name}</span>
+        {isPending && <span style={styles.pendingBadge}>Pending</span>}
+        <button
+          style={{
+            ...styles.deleteButton,
+            opacity: isEditMode ? 1 : 0,
+            pointerEvents: isEditMode ? 'auto' : 'none',
+            transition: 'opacity 0.2s',
+          }}
+          onClick={() => onDelete(player)}
+          tabIndex={isEditMode ? 0 : -1}
+          aria-label="Remove player"
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }
@@ -80,6 +109,10 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [panelHeight, setPanelHeight] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { delay: 100, tolerance: 10 } }),
@@ -101,8 +134,73 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     }
   }, [roster, pendingPlayers, isEditMode]);
 
-  // Consolidated drag end handler
-  function handleDragEnd(event: any, gender: 'O' | 'W') {
+  // Handle drag start
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsDragging(true);
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setDragStartY(clientY);
+  };
+
+  // Handle drag move
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
+    if (!isDragging || !panelRef.current) return;
+    
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const deltaY = dragStartY - clientY;
+    const newHeight = Math.max(24, Math.min(contentHeight + 24, panelHeight + deltaY)); // 24px for handle only
+    
+    setPanelHeight(newHeight);
+    setDragStartY(clientY);
+  };
+
+  // Handle drag end
+  const handleDragEnd = () => {
+    if (!isDragging) return;
+    
+    setIsDragging(false);
+    const threshold = (contentHeight + 24) * 0.3; // Account for handle only
+    if (panelHeight > threshold) {
+      setIsVisible(true);
+      setPanelHeight(contentHeight + 24); // 24px handle + content
+    } else {
+      setIsVisible(false);
+      setPanelHeight(24); // Just the handle height
+    }
+  };
+
+  // Add event listeners for drag
+  useEffect(() => {
+    if (isDragging) {
+      const handleMouseMove = (e: MouseEvent) => handleDragMove(e);
+      const handleTouchMove = (e: TouchEvent) => handleDragMove(e);
+      const handleMouseUp = () => handleDragEnd();
+      const handleTouchEnd = () => handleDragEnd();
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchend', handleTouchEnd);
+
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, [isDragging, panelHeight, contentHeight]);
+
+  // Update panel height when visibility changes
+  useEffect(() => {
+    if (isVisible) {
+      setPanelHeight(contentHeight + 24); // 24px handle + content
+    } else {
+      setPanelHeight(24); // Just the handle height
+    }
+  }, [isVisible, contentHeight]);
+
+  // Consolidated drag end handler for player sorting
+  function handlePlayerDragEnd(event: any, gender: 'O' | 'W') {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -150,79 +248,116 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     }
   }
 
-  return (
-    <div style={styles.container}>
-      <div style={styles.buttonRow}>
-        <button style={styles.toggleButton} onClick={() => setIsVisible(!isVisible)}>
-          {isVisible ? 'Done' : 'Player Manager'}
-        </button>
-      </div>
+  // Handler to enter edit mode from long-press
+  const handleLongPress = () => setIsEditMode(true);
 
+  // Handler to exit edit mode
+  const handleDone = () => setIsEditMode(false);
+
+  return (
+    <div style={styles.slidePanelContainer}>
+      {isVisible && (
+        <div
+          style={styles.backdrop}
+          onClick={() => setIsVisible(false)}
+        />
+      )}
       <div 
+        ref={panelRef}
         style={{
-          ...styles.managerWrapper,
-          height: isVisible ? contentHeight : 0,
-          opacity: isVisible ? 1 : 0,
+          ...styles.slidePanel,
+          height: `${Math.max(24, panelHeight)}px`, // Always show at least the drag handle
+          zIndex: 1001, // Ensure panel is above the backdrop
         }}
       >
-        <div ref={contentRef} style={styles.managerContent}>
-          {/* Edit and gender row */}
-          <div style={styles.editGenderRow}>
-            <div style={styles.genderRow}>
-              <button
-                style={{ ...styles.genderButton, ...(newPlayer.gender === 'O' ? styles.genderButtonActiveOpen : {}) }}
-                onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'O' }))}
-              >
-                Open
-              </button>
-              <button
-                style={{ ...styles.genderButton, ...(newPlayer.gender === 'W' ? styles.genderButtonActiveWomen : {}) }}
-                onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'W' }))}
-              >
-                Women
+        <div 
+          style={{
+            ...styles.dragHandle,
+            backgroundColor: isVisible ? '#1d1d1d' : '#2d2d2d',
+          }}
+          onMouseDown={handleDragStart}
+          onTouchStart={handleDragStart}
+          onClick={() => setIsVisible(v => !v)}
+        >
+          <div style={styles.handleBar} />
+        </div>
+        {/* Always render content for measurement, but hide visually when closed */}
+        <div 
+          ref={contentRef} 
+          style={{
+            ...styles.panelContent,
+            opacity: isVisible ? 1 : 0,
+            visibility: isVisible ? 'visible' : 'hidden',
+            pointerEvents: isVisible ? 'auto' : 'none',
+            transition: isDragging ? 'none' : 'opacity 0.3s ease-in-out, visibility 0.3s',
+          }}
+        >
+          {/* Add player controls (input + gender row, then full-width button) */}
+          <div style={styles.addPlayerSectionRow}>
+            <div style={styles.inputGenderRow}>
+              <input
+                ref={inputRef}
+                style={styles.input}
+                value={newPlayer.name}
+                onChange={e => setNewPlayer(prev => ({ ...prev, name: e.target.value }))}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddPlayer()}
+                placeholder="Enter player name..."
+              />
+              <div style={styles.genderButtonGroup}>
+                <button
+                  style={{ ...styles.genderButton, ...(newPlayer.gender === 'O' ? styles.genderButtonActiveOpen : {}) }}
+                  onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'O' }))}
+                >
+                  Open
+                </button>
+                <button
+                  style={{ ...styles.genderButton, ...(newPlayer.gender === 'W' ? styles.genderButtonActiveWomen : {}) }}
+                  onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'W' }))}
+                >
+                  Women
+                </button>
+              </div>
+            </div>
+            <div style={{ width: '100%' }}>
+              <button style={styles.addPlayerButtonFull} onClick={handleAddPlayer}>
+                Add Player
               </button>
             </div>
-            <div style={{ flex: 1 }} />
-            <button 
-              style={{ ...styles.actionButton, ...styles.editButton, ...(isEditMode ? styles.editModeActive : {}) }} 
-              onClick={() => setIsEditMode(!isEditMode)}
-            >
-              {isEditMode ? 'Done' : 'Edit'}
-            </button>
           </div>
 
-          {/* Add player controls, new layout */}
-          <div style={styles.addPlayerSectionModern}>
-            <input
-              ref={inputRef}
-              style={styles.input}
-              value={newPlayer.name}
-              onChange={e => setNewPlayer(prev => ({ ...prev, name: e.target.value }))}
-              onKeyPress={(e) => e.key === 'Enter' && handleAddPlayer()}
-              placeholder="New player name"
-            />
-            <button style={styles.addPlayerButton} onClick={handleAddPlayer}>
-              Add Player
+          {/* Show Done button in edit mode, but always reserve space to prevent layout shift */}
+          <div style={styles.doneButtonRow}>
+            <button
+              style={{
+                ...styles.doneButton,
+                opacity: isEditMode ? 1 : 0,
+                pointerEvents: isEditMode ? 'auto' : 'none',
+                transition: 'opacity 0.2s',
+              }}
+              onClick={handleDone}
+              aria-label="Done Editing"
+            >
+              Done
             </button>
           </div>
 
           <div style={styles.rosterContainer}>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'O')}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handlePlayerDragEnd(e, 'O')}>
               <div style={styles.rosterColumn}>
                 <h3 style={styles.rosterTitle}>Open Players</h3>
                 <SortableContext items={openPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
                   {openPlayers.map((player, index) => (
-                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingOpenPlayers.some(p => p.uuid === player.uuid)} />
+                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingOpenPlayers.some(p => p.uuid === player.uuid)} onLongPress={handleLongPress} />
                   ))}
                 </SortableContext>
               </div>
             </DndContext>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, 'W')}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handlePlayerDragEnd(e, 'W')}>
               <div style={styles.rosterColumn}>
                 <h3 style={styles.rosterTitle}>Women Players</h3>
                 <SortableContext items={womenPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
                   {womenPlayers.map((player, index) => (
-                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingWomenPlayers.some(p => p.uuid === player.uuid)} />
+                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingWomenPlayers.some(p => p.uuid === player.uuid)} onLongPress={handleLongPress} />
                   ))}
                 </SortableContext>
               </div>
@@ -237,9 +372,47 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
 const baseFont = 'system-ui, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
 
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    padding: '20px',
-    textAlign: 'center'
+  slidePanelContainer: {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    pointerEvents: 'none',
+  },
+  slidePanel: {
+    position: 'relative',
+    backgroundColor: '#2d2d2d', // fully opaque for the panel shell
+    borderTopLeftRadius: '16px',
+    borderTopRightRadius: '16px',
+    overflow: 'hidden',
+    transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    pointerEvents: 'auto',
+    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
+  },
+  dragHandle: {
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'grab',
+    backgroundColor: '#1d1d1d', // fully opaque for the handle
+    borderTopLeftRadius: '16px',
+    borderTopRightRadius: '16px',
+    userSelect: 'none',
+    touchAction: 'none',
+  },
+  handleBar: {
+    width: '40px',
+    height: '4px',
+    backgroundColor: COLORS.handle,
+    borderRadius: '2px',
+  },
+  panelContent: {
+    padding: '0px 20px 20px 20px', // even tighter top padding
+    maxHeight: '70vh',
+    overflowY: 'auto',
+    backgroundColor: 'rgba(45, 45, 45, )', // keep content area slightly translucent
   },
   managerWrapper: {
     overflow: 'hidden',
@@ -253,7 +426,7 @@ const styles: Record<string, React.CSSProperties> = {
   addPlayerSection: {
     display: 'flex',
     gap: '10px',
-    marginBottom: '20px',
+    marginBottom: '2px',
     alignItems: 'center'
   },
   input: {
@@ -267,15 +440,27 @@ const styles: Record<string, React.CSSProperties> = {
   },
   genderButtons: { display: 'flex', gap: '5px' },
   genderButton: {
-    padding: '8px 16px',
-    border: '.5px solid #fff',
+    padding: '10px 20px',
+    border: 'none',
     borderRadius: '6px',
-    backgroundColor: 'transparent',
+    backgroundColor: '#232323', // subtle gray for inactive
     color: COLORS.textSecondary,
-    cursor: 'pointer'
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: '14px',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+    transition: 'background 0.2s, color 0.2s',
   },
-  genderButtonActiveOpen: { backgroundColor: COLORS.open, color: COLORS.text, border: '.5px solid #fff' },
-  genderButtonActiveWomen: { backgroundColor: COLORS.women, color: COLORS.text, border: '.5px solid #fff' },
+  genderButtonActiveOpen: {
+    backgroundColor: COLORS.open,
+    color: COLORS.text,
+    boxShadow: '0 2px 8px rgba(74,144,226,0.10)',
+  },
+  genderButtonActiveWomen: {
+    backgroundColor: COLORS.women,
+    color: COLORS.text,
+    boxShadow: '0 2px 8px rgba(232,62,140,0.10)',
+  },
   addButton: {
     padding: '10px 20px',
     backgroundColor: COLORS.add,
@@ -306,14 +491,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   rosterContainer: {
     display: 'flex',
-    gap: '12px'
+    gap: '12px',
+    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    borderRadius: '12px',
+    padding: '20px',
+    border: `1px solid ${COLORS.border}`,
   },
   rosterColumn: {
     flex: 1,
   },
   rosterTitle: {
     color: COLORS.text,
-    marginBottom: '10px'
+    marginTop: 0,
+    marginBottom: '10px',
+    textAlign: 'center',
+    width: '100%',
+    display: 'block',
   },
   playerRow: {
     display: 'flex',
@@ -332,7 +525,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     cursor: 'grab',
   },
-  playerName: {},
+  playerName: {
+    flex: 1,
+    color: '#fff',
+    fontWeight: 500,
+    textAlign: 'center',
+    width: '100%',
+    paddingLeft: 0,
+  },
   pendingBadge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     padding: '2px 6px',
@@ -359,15 +559,9 @@ const styles: Record<string, React.CSSProperties> = {
   addPlayerSectionNew: {
     display: 'flex',
     gap: '10px',
-    marginBottom: '24px',
+    marginBottom: '10px',
     alignItems: 'center',
     marginTop: '8px',
-  },
-  editRow: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginBottom: '8px',
   },
   addPlayerSectionModern: {
     display: 'flex',
@@ -395,15 +589,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '2px',
     transition: 'background 0.2s',
   },
-  editGenderRow: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginBottom: '8px',
-  },
-  buttonRow: {
-    marginBottom: '20px',
-  },
   toggleButton: {
     padding: '10px 20px',
     backgroundColor: COLORS.add,
@@ -411,5 +596,98 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
+  },
+  backdrop: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0,0,0,0.35)',
+    zIndex: 1000,
+    transition: 'opacity 0.3s',
+    pointerEvents: 'auto',
+  },
+  playerNumber: {
+    minWidth: 28,
+    height: 32,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 600,
+    fontSize: 15,
+    color: '#b3b3b3',
+    background: 'rgba(83, 0, 0, 0.08)',
+    borderRadius: '6px',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+  },
+  addPlayerSectionRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: '0',
+    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    borderRadius: '12px',
+    padding: '10px',
+    marginBottom: '10px',
+    border: `1px solid ${COLORS.border}`,
+  },
+  genderButtonGroup: {
+    display: 'flex',
+    gap: '10px',
+  },
+  inputGenderRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: '10px',
+    width: '100%',
+    marginBottom: '10px',
+  },
+  addPlayerButtonFull: {
+    width: '100%',
+    padding: '16px 0',
+    backgroundColor: COLORS.add,
+    color: COLORS.text,
+    border: 'none',
+    borderRadius: '8px',
+    fontWeight: '600',
+    fontSize: '16px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 2px 8px rgba(46,204,113,0.15)',
+  },
+  iconEditButton: {
+    background: 'none',
+    border: 'none',
+    color: '#b3b3b3',
+    fontSize: '20px',
+    cursor: 'pointer',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    transition: 'background 0.15s',
+    outline: 'none',
+  },
+  iconEditButtonActive: {
+    color: COLORS.delete,
+    background: 'rgba(231,76,60,0.08)',
+  },
+  doneButtonRow: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  doneButton: {
+    background: COLORS.add,
+    color: COLORS.text,
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: 600,
+    fontSize: '14px',
+    padding: '8px 18px',
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(46,204,113,0.10)',
+    transition: 'background 0.15s',
   },
 }; 
