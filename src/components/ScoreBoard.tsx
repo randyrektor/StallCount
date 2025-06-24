@@ -359,11 +359,26 @@ export function ScoreBoard({
       <div style={styles.lineInfo}>
         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%' }}>
           {/* Left: Point X */}
-          <div style={{ minWidth: 70, textAlign: 'left' }}>
+          <div style={{ flex: '0 0 auto', minWidth: 70, textAlign: 'left' }}>
             <span style={styles.lineInfoText}>Point {pointNumber}</span>
           </div>
-          {/* Center: ABBA pattern, perfectly centered */}
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          {/* Center: scoreDiff (only if not mobile) */}
+          <div style={{ flex: '1 1 0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            {!isMobile && (
+              <div style={{
+                ...styles.scoreDiff,
+                fontSize: '18px',
+                color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+                margin: 0,
+                alignSelf: 'center',
+                display: 'inline-block',
+              }}>
+                {scoreDiff !== 0 ? scoreDiff : '0'}
+              </div>
+            )}
+          </div>
+          {/* Right: ABBA pattern, right-aligned */}
+          <div style={{ flex: '0 0 auto', minWidth: 120, textAlign: 'right', display: 'flex', justifyContent: 'flex-end' }}>
             {genderRatioMode === 'ABBA' && (
               <div style={styles.patternDisplay}>
                 {['A', 'B', 'B', 'A'].map((p, i) => (
@@ -374,23 +389,20 @@ export function ScoreBoard({
               </div>
             )}
           </div>
-          {/* Right: scoreDiff (only on mobile) */}
-          <div style={{ minWidth: 36, textAlign: 'right' }}>
-            {isMobile && genderRatioMode === 'ABBA' && (
-              <div style={{
-                ...styles.scoreDiff,
-                fontSize: '16px',
-                color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
-                marginLeft: 'auto',
-                marginRight: 0,
-                alignSelf: 'center',
-                display: 'inline-block',
-              }}>
-                {scoreDiff !== 0 ? scoreDiff : '0'}
-              </div>
-            )}
-          </div>
         </div>
+        {/* On mobile, show scoreDiff below, right-aligned under ABBA */}
+        {isMobile && genderRatioMode === 'ABBA' && (
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+            <div style={{
+              ...styles.scoreDiff,
+              fontSize: '16px',
+              color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+              display: 'inline-block',
+            }}>
+              {scoreDiff !== 0 ? scoreDiff : '0'}
+            </div>
+          </div>
+        )}
       </div>
       {/* Team columns always scale, never scroll */}
       <div style={lineDisplayStyle}>
