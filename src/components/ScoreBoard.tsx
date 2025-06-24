@@ -357,14 +357,21 @@ export function ScoreBoard({
       </div>
 
       <div style={styles.lineInfo}>
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%', position: 'relative' }}>
           {/* Left: Point X */}
           <div style={{ flex: '0 0 auto', minWidth: 70, textAlign: 'left' }}>
             <span style={styles.lineInfoText}>Point {pointNumber}</span>
           </div>
-          {/* Center: scoreDiff (only if not mobile) */}
-          <div style={{ flex: '1 1 0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            {!isMobile && (
+          {/* Center: scoreDiff (absolutely centered in card, only on mobile) */}
+          {isMobile && (
+            <div style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 1,
+              pointerEvents: 'none',
+            }}>
               <div style={{
                 ...styles.scoreDiff,
                 fontSize: '18px',
@@ -375,11 +382,21 @@ export function ScoreBoard({
               }}>
                 {scoreDiff !== 0 ? scoreDiff : '0'}
               </div>
-            )}
-          </div>
-          {/* Right: ABBA pattern, right-aligned */}
-          <div style={{ flex: '0 0 auto', minWidth: 120, textAlign: 'right', display: 'flex', justifyContent: 'flex-end' }}>
-            {genderRatioMode === 'ABBA' && (
+            </div>
+          )}
+          {/* Right: ABBA pattern, perfectly right-aligned */}
+          {genderRatioMode === 'ABBA' && (
+            <div style={{
+              position: 'absolute',
+              right: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              minWidth: 120,
+              textAlign: 'right',
+              zIndex: 1,
+            }}>
               <div style={styles.patternDisplay}>
                 {['A', 'B', 'B', 'A'].map((p, i) => (
                   <div key={i} style={{ ...styles.patternItem, ...(patternIndex === i ? styles.patternItemActive : {}) }}>
@@ -387,22 +404,9 @@ export function ScoreBoard({
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        </div>
-        {/* On mobile, show scoreDiff below, centered under the row */}
-        {isMobile && genderRatioMode === 'ABBA' && (
-          <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginTop: 4 }}>
-            <div style={{
-              ...styles.scoreDiff,
-              fontSize: '16px',
-              color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
-              display: 'inline-block',
-            }}>
-              {scoreDiff !== 0 ? scoreDiff : '0'}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       {/* Team columns always scale, never scroll */}
       <div style={lineDisplayStyle}>
