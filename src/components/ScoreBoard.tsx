@@ -282,9 +282,6 @@ export function ScoreBoard({
         </div>
         <div style={{
           ...styles.settingsSection,
-          padding: isMobile ? '2.5px 0' : styles.settingsSection.padding,
-          marginBottom: isMobile ? '2.5px' : styles.settingsSection.marginBottom,
-          gap: isMobile ? '4px' : styles.settingsSection.gap,
         }}>
           <button
             style={{
