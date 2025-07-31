@@ -668,6 +668,13 @@ export default function App() {
         genderRatioMode={genderRatioMode}
         onGenderRatioModeChange={setGenderRatioMode}
         onReset={handleReset}
+        team1Score={team1Score}
+        team2Score={team2Score}
+        pointNumber={pointNumber}
+        lineIndex={lineIndex}
+        currentLine={getLine(currentOpenQueue, currentWomanQueue, getPattern(lineIndex), normalizedOpenIndex, normalizedWomenIndex)}
+        pendingPlayers={pendingPlayers}
+        roster={roster}
       />
     </div>
   );
