@@ -15,6 +15,9 @@ test:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
+# Vite base is derived from CI_PAGES_URL (GitLab 15.5+). Subdomain URLs like
+# https://score-app-xxxx.gitlab.io/ → base '/'. If the pipeline lacks CI_PAGES_URL,
+# set CI/CD variable PAGES_BASE to '/' or '/your-project/' to match your Pages URL.
 pages:
   stage: deploy
   script:
