@@ -29,11 +29,22 @@ interface PlayerManagerWebProps {
   scrollViewRef?: any;
   onLateArrival: (player: Player) => void;
   pendingPlayers: Player[];
+  masterOpenQueue?: Player[];
+  masterWomenQueue?: Player[];
+  onForcePendingToRotation?: (player: Player) => void;
 }
 
-function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLongPress }: any) {
+function SortablePlayer({
+  player,
+  index,
+  isEditMode,
+  onDelete,
+  isPending,
+  onLongPress,
+  onForcePending,
+}: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
-  const longPressTimeout = useRef<NodeJS.Timeout | null>(null);
+  const longPressTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasMoved = useRef(false);
   const startPosition = useRef<{ x: number; y: number } | null>(null);
 
@@ -95,7 +106,9 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
       onTouchCancel={handlePointerUp}
     >
       {/* Player number outside the card */}
-      <span style={styles.playerNumber}>{index + 1}</span>
+      <span style={styles.playerNumber}>
+        {player.number > 0 ? player.number : index + 1}
+      </span>
       <div style={{ width: 8 }} /> {/* Small gap */}
       <div
         ref={setNodeRef}
@@ -129,6 +142,19 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
             Pending
           </span>
         )}
+        {isPending && onForcePending && isEditMode && (
+          <button
+            type="button"
+            style={styles.forcePendingButton}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onForcePending(player);
+            }}
+          >
+            Add now
+          </button>
+        )}
         <button
           style={{
             ...styles.deleteButton,
@@ -151,7 +177,15 @@ function SortablePlayer({ player, index, isEditMode, onDelete, isPending, onLong
   );
 }
 
-export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendingPlayers }: PlayerManagerWebProps) {
+export function PlayerManagerWeb({
+  roster,
+  onRosterChange,
+  onLateArrival,
+  pendingPlayers,
+  masterOpenQueue = [],
+  masterWomenQueue = [],
+  onForcePendingToRotation,
+}: PlayerManagerWebProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [newPlayer, setNewPlayer] = useState<{ name: string; gender: 'O' | 'W' }>({ name: '', gender: 'O' });
   const inputRef = useRef<HTMLInputElement>(null);
@@ -168,9 +202,18 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 10 } })
   );
 
-  // Split roster into open and women
-  const openPlayers = useMemo(() => roster.filter(p => p.gender === 'O'), [roster]);
-  const womenPlayers = useMemo(() => roster.filter(p => p.gender === 'W'), [roster]);
+  // List order = master rotation queue first (source of truth after subs), then roster-only extras (e.g. pending).
+  const openPlayers = useMemo(() => {
+    const ids = new Set(masterOpenQueue.map((p) => p.uuid));
+    const extras = roster.filter((p) => p.gender === 'O' && !ids.has(p.uuid));
+    return [...masterOpenQueue, ...extras];
+  }, [masterOpenQueue, roster]);
+
+  const womenPlayers = useMemo(() => {
+    const ids = new Set(masterWomenQueue.map((p) => p.uuid));
+    const extras = roster.filter((p) => p.gender === 'W' && !ids.has(p.uuid));
+    return [...masterWomenQueue, ...extras];
+  }, [masterWomenQueue, roster]);
 
   // Split pending players into open and women
   const pendingOpenPlayers = useMemo(() => pendingPlayers.filter(p => p.gender === 'O'), [pendingPlayers]);
@@ -352,6 +395,16 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
           }}
         >
           {/* Add player controls (input + gender row, then full-width button) */}
+          {pendingPlayers.length > 0 && (
+            <div style={styles.pendingExplainer}>
+              <strong style={{ color: COLORS.text }}>Pending</strong>
+              <span style={{ color: COLORS.textSecondary, fontSize: 12 }}>
+                {' '}
+                — not in rotation yet. They'll join after a point, unless "Add now" puts them in immediately without changing who's on the field.
+              </span>
+            </div>
+          )}
+
           <div style={styles.addPlayerSectionRow}>
             <div style={styles.inputGenderRow}>
               <input
@@ -386,8 +439,24 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
             </div>
           </div>
 
-          {/* Show Done button in edit mode, but always reserve space to prevent layout shift */}
-          <div style={styles.doneButtonRow}>
+          <p style={styles.rosterHint}>
+            Drag to reorder and delete to remove. New players join as Pending until they rotate in. 'Current Line' does not change.
+          </p>
+
+          {/* Done row only takes space in edit mode so hint sits closer to the roster */}
+          <div
+            style={{
+              ...styles.doneButtonRow,
+              ...(!isEditMode
+                ? {
+                    height: 0,
+                    minHeight: 0,
+                    marginBottom: 0,
+                    overflow: 'hidden',
+                  }
+                : {}),
+            }}
+          >
             <button
               style={{
                 ...styles.doneButton,
@@ -408,7 +477,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                 <h3 style={styles.rosterTitle}>Open Players</h3>
                 <SortableContext items={openPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
                   {openPlayers.map((player, index) => (
-                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingOpenPlayers.some(p => p.uuid === player.uuid)} onLongPress={handleLongPress} />
+                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingOpenPlayers.some(p => p.uuid === player.uuid)} onLongPress={handleLongPress} onForcePending={onForcePendingToRotation} />
                   ))}
                 </SortableContext>
               </div>
@@ -418,7 +487,7 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
                 <h3 style={styles.rosterTitle}>Women Players</h3>
                 <SortableContext items={womenPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
                   {womenPlayers.map((player, index) => (
-                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingWomenPlayers.some(p => p.uuid === player.uuid)} onLongPress={handleLongPress} />
+                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingWomenPlayers.some(p => p.uuid === player.uuid)} onLongPress={handleLongPress} onForcePending={onForcePendingToRotation} />
                   ))}
                 </SortableContext>
               </div>
@@ -429,8 +498,6 @@ export function PlayerManagerWeb({ roster, onRosterChange, onLateArrival, pendin
     </div>
   );
 }
-
-const baseFont = 'system-ui, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
 
 const styles: Record<string, React.CSSProperties> = {
   slidePanelContainer: {
@@ -562,7 +629,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '12px',
     backgroundColor: 'rgba(45, 45, 45, 0.5)',
     borderRadius: '12px',
-    padding: '20px',
+    padding: '12px 20px 20px 20px',
     border: `1px solid ${COLORS.border}`,
     width: '100%',
     boxSizing: 'border-box',
@@ -750,7 +817,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   doneButton: {
     background: COLORS.add,
@@ -763,5 +830,34 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     boxShadow: '0 2px 8px rgba(46,204,113,0.10)',
     transition: 'background 0.15s',
+  },
+  rosterHint: {
+    margin: '0 0 4px 0',
+    fontSize: '12px',
+    lineHeight: 1.45,
+    color: COLORS.textSecondary,
+  },
+  pendingExplainer: {
+    marginBottom: '10px',
+    padding: '8px 10px',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    border: `1px solid ${COLORS.border}`,
+    lineHeight: 1.4,
+  },
+  forcePendingButton: {
+    position: 'absolute',
+    right: '36px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    padding: '4px 8px',
+    fontSize: '10px',
+    fontWeight: 700,
+    border: 'none',
+    borderRadius: '4px',
+    backgroundColor: COLORS.add,
+    color: COLORS.text,
+    cursor: 'pointer',
+    zIndex: 2,
   },
 }; 

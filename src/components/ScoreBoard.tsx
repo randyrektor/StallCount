@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Player } from '../types';
-import { getLine, getNextLine, getGenderBreakdown, rotateQueue } from '../utils/lineRotation';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Player, type GenderRatioMode, type LineupSize } from '../types';
+import { getGenderPattern } from '../utils/rotationHelpers';
+import { getLine } from '../utils/lineRotation';
 import { commonStyles } from '../styles/common';
 
 // Modern color palette
@@ -19,6 +20,10 @@ const COLORS = {
   input: '#333333',
   delete: '#e74c3c',
 };
+
+function normSubName(name: string): string {
+  return name.trim().toLowerCase();
+}
 
 // Gradient blob colors
 const BLOB_COLORS = {
@@ -79,7 +84,8 @@ interface ScoreBoardProps {
   pointNumber: number;
   onReset: () => void;
   onUndo: () => void;
-  genderRatioMode?: 'ABBA' | '4-3' | '3-4' | 'MEN' | 'WOMEN';
+  genderRatioMode?: GenderRatioMode;
+  lineupSize?: LineupSize;
   halftimeCountdown: string;
   endCountdown: string;
   showTimers: boolean;
@@ -94,6 +100,7 @@ interface ScoreBoardProps {
   onLateArrival: (player: Player) => void;
   pendingPlayers: Player[];
   gameStarted: boolean;
+  onSubstitute?: (outPlayer: Player, inPlayer: Player) => void;
 }
 
 export function ScoreBoard({
@@ -108,6 +115,7 @@ export function ScoreBoard({
   onReset,
   onUndo,
   genderRatioMode = 'ABBA',
+  lineupSize = 7,
   halftimeCountdown,
   endCountdown,
   showTimers,
@@ -118,11 +126,14 @@ export function ScoreBoard({
   nextOpenQueue,
   nextWomanQueue,
   scoreHistory,
+  onSubstitute,
 }: ScoreBoardProps) {
-  const patternIndex = lineIndex % 4;
+  const patternIndexAbba = lineIndex % 4;
+  const patternIndexAab = lineIndex % 3;
   const [isAnimating, setIsAnimating] = useState(false);
   const [flashTeam1, setFlashTeam1] = useState(false);
   const [flashTeam2, setFlashTeam2] = useState(false);
+  const [subOut, setSubOut] = useState<Player | null>(null);
 
   openQueue = openQueue || [];
   womanQueue = womanQueue || [];
@@ -132,23 +143,49 @@ export function ScoreBoard({
   const openPlayers = openQueue;
   const womenPlayers = womanQueue;
 
-  function getPattern(idx: number) {
-    if (genderRatioMode === '4-3') return { men: 4, women: 3 };
-    if (genderRatioMode === '3-4') return { men: 3, women: 4 };
-    if (genderRatioMode === 'MEN') return { men: 7, women: 0 };
-    if (genderRatioMode === 'WOMEN') return { men: 0, women: 7 };
-    const mod = idx % 4;
-    if (mod === 0 || mod === 3) return { men: 4, women: 3 };
-    return { men: 3, women: 4 };
-  }
-
-  const currentPattern = getPattern(lineIndex);
+  const currentPattern = getGenderPattern(lineIndex, genderRatioMode, lineupSize);
   const currentLine = getLine(openPlayers, womenPlayers, currentPattern);
 
-  const nextPattern = getPattern(lineIndex + 1);
+  const nextPattern = getGenderPattern(lineIndex + 1, genderRatioMode, lineupSize);
   const nextLine = getLine(nextOpenQueue, nextWomanQueue, nextPattern);
 
   const scoreDiff = team1Score - team2Score;
+
+  // Use the same window slices App passes as props (not only getLine), and match by
+  // gender+name as well as uuid so roster rows still align if UUIDs ever diverge.
+  const onFieldSlots = [...openQueue, ...womanQueue];
+  const onFieldUuids = new Set(onFieldSlots.map((p) => p.uuid));
+  const onFieldGenderNames = new Set(
+    onFieldSlots.map((p) => `${p.gender}:${normSubName(p.name)}`)
+  );
+
+  const subCandidates = subOut
+    ? roster.filter((p) => {
+        if (p.gender !== subOut.gender) return false;
+        if (p.uuid === subOut.uuid) return false;
+        if (onFieldUuids.has(p.uuid)) return false;
+        if (onFieldGenderNames.has(`${p.gender}:${normSubName(p.name)}`)) return false;
+        return true;
+      })
+    : [];
+
+  const closeSubPicker = useCallback(() => setSubOut(null), []);
+
+  useEffect(() => {
+    if (!subOut) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeSubPicker();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [subOut, closeSubPicker]);
+
+  const handlePickSubIn = (inPlayer: Player) => {
+    if (subOut && onSubstitute) {
+      onSubstitute(subOut, inPlayer);
+    }
+    setSubOut(null);
+  };
 
   const handleScoreClick = (team: 'team1' | 'team2') => {
     if (isAnimating) return;
@@ -381,7 +418,7 @@ export function ScoreBoard({
               </div>
             </div>
           )}
-          {/* Right: ABBA pattern, perfectly right-aligned */}
+          {/* Right: rotating pattern indicator */}
           {genderRatioMode === 'ABBA' && (
             <div style={{
               position: 'absolute',
@@ -396,7 +433,28 @@ export function ScoreBoard({
             }}>
               <div style={styles.patternDisplay}>
                 {['A', 'B', 'B', 'A'].map((p, i) => (
-                  <div key={i} style={{ ...styles.patternItem, ...(patternIndex === i ? styles.patternItemActive : {}) }}>
+                  <div key={i} style={{ ...styles.patternItem, ...(patternIndexAbba === i ? styles.patternItemActive : {}) }}>
+                    <span style={styles.patternText}>{p}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {(genderRatioMode === 'AAB-MW' || genderRatioMode === 'AAB-WM') && (
+            <div style={{
+              position: 'absolute',
+              right: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              minWidth: 100,
+              textAlign: 'right',
+              zIndex: 1,
+            }}>
+              <div style={styles.patternDisplay}>
+                {['A', 'A', 'B'].map((p, i) => (
+                  <div key={i} style={{ ...styles.patternItem, ...(patternIndexAab === i ? styles.patternItemActive : {}) }}>
                     <span style={styles.patternText}>{p}</span>
                   </div>
                 ))}
@@ -411,8 +469,26 @@ export function ScoreBoard({
           <h3 style={styles.lineTitle}>Current Line</h3>
           <div style={styles.playerListVertical}>
             {currentLine.map((player: Player) => (
-              <div key={player.uuid} style={{...styles.playerContainer, backgroundColor: player.gender === 'O' ? COLORS.open : COLORS.women }}>
-                <span style={styles.playerText}>{player.name}</span>
+              <div key={player.uuid} style={styles.currentLineRow}>
+                <div
+                  style={{
+                    ...styles.playerContainer,
+                    ...styles.currentLineNameBlock,
+                    backgroundColor: player.gender === 'O' ? COLORS.open : COLORS.women,
+                  }}
+                >
+                  <span style={styles.playerText}>{player.name}</span>
+                </div>
+                {onSubstitute ? (
+                  <button
+                    type="button"
+                    style={styles.subSideButton}
+                    onClick={() => setSubOut(player)}
+                    aria-label={`Substitute ${player.name}`}
+                  >
+                    Sub
+                  </button>
+                ) : null}
               </div>
             ))}
           </div>
@@ -428,6 +504,54 @@ export function ScoreBoard({
           </div>
         </div>
       </div>
+
+      {subOut && onSubstitute && (
+        <div style={styles.subOverlay} onClick={closeSubPicker} role="presentation">
+          <div
+            style={styles.subModal}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sub-modal-title"
+          >
+            <h4 id="sub-modal-title" style={styles.subModalTitle}>
+              Sub out: {subOut.name}
+            </h4>
+            <p style={styles.subModalHelp}>
+              Bench for field (tired / fresh): you swap numbers with {subOut.name} in the
+              rotation list—same pointer, two people trade spots. Someone not in the list yet
+              takes this slot and {subOut.name} goes to the end. Injury or leaving the game:
+              remove them from the roster instead; their slot is deleted and everyone below moves
+              up.
+            </p>
+            <div style={styles.subCandidateList}>
+              {subCandidates.length === 0 ? (
+                <p style={styles.subModalEmpty}>
+                  No eligible subs: every {subOut.gender === 'O' ? 'open' : "women's"}-matching player
+                  is already on this line. Add bench players from the roster panel or cancel.
+                </p>
+              ) : (
+                subCandidates.map((p) => (
+                  <button
+                    key={p.uuid}
+                    type="button"
+                    style={{
+                      ...styles.subCandidateButton,
+                      backgroundColor: p.gender === 'O' ? COLORS.open : COLORS.women,
+                    }}
+                    onClick={() => handlePickSubIn(p)}
+                  >
+                    {p.name}
+                  </button>
+                ))
+              )}
+            </div>
+            <button type="button" style={styles.subCancelButton} onClick={closeSubPicker}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -582,6 +706,104 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8.5px 10.5px',
     borderRadius: '3.5px',
     textAlign: 'center',
+  },
+  currentLineRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: '6px',
+    width: '100%',
+    minWidth: 0,
+  },
+  currentLineNameBlock: {
+    flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subSideButton: {
+    flex: '0 0 36px',
+    width: '36px',
+    border: 'none',
+    borderRadius: '3.5px',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    color: COLORS.text,
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.02em',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px 2px',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+  },
+  subOverlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    zIndex: 2000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '16px',
+  },
+  subModal: {
+    backgroundColor: COLORS.card,
+    borderRadius: '12px',
+    padding: '18px',
+    maxWidth: '360px',
+    width: '100%',
+    border: `1px solid ${COLORS.border}`,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+  },
+  subModalTitle: {
+    margin: '0 0 8px 0',
+    color: COLORS.text,
+    fontSize: '17px',
+    fontWeight: 700,
+  },
+  subModalHelp: {
+    margin: '0 0 14px 0',
+    color: COLORS.textSecondary,
+    fontSize: '13px',
+    lineHeight: 1.4,
+  },
+  subModalEmpty: {
+    margin: 0,
+    color: COLORS.textSecondary,
+    fontSize: '13px',
+    lineHeight: 1.45,
+  },
+  subCandidateList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    maxHeight: 'min(50vh, 280px)',
+    overflowY: 'auto',
+  },
+  subCandidateButton: {
+    border: 'none',
+    borderRadius: '6px',
+    padding: '12px 14px',
+    color: COLORS.text,
+    fontSize: '15px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    textAlign: 'center',
+  },
+  subCancelButton: {
+    marginTop: '14px',
+    width: '100%',
+    padding: '10px',
+    borderRadius: '6px',
+    border: `1px solid ${COLORS.border}`,
+    backgroundColor: 'transparent',
+    color: COLORS.textSecondary,
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
   },
   playerText: {
     color: COLORS.text,

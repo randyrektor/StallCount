@@ -1,97 +1,116 @@
-# score-app
+# Ultimate Frisbee Score App
 
+A modern web-based score tracking application for Ultimate Frisbee games, featuring advanced line rotation management, gender ratio tracking, and real-time game statistics.
 
+## Features
 
-## Getting started
+### ✅ Team & Roster Management
+- **Home Screen**: Enter your team name on startup
+- **Roster Setup**: Add players for each game (no hardcoded roster)
+- **Quick Entry**: Add players by name and gender with keyboard shortcuts
+- **Visual Stats**: See player count breakdown (Total, Open, Women)
+- **Local Storage**: Saves recent team names for quick access
+- **Flexible**: Add different players each game
 
-To make it very easy for you to get started with GitLab, here's a list of recommended next steps.
+### 🎯 Game Tracking
+- Real-time score tracking for both teams
+- Point-by-point history with undo functionality
+- Automatic line rotation based on gender ratios
+- Support for ABBA, 4-3, 3-4, Men Only, and Women Only formats
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### 👥 Player Management
+- Drag-and-drop roster management during game
+- Late arrival handling (players can join mid-game without disrupting current line)
+- Automatic player numbering by gender
+- Current and next line preview
+- Pending players queue for seamless rotation
 
-## Add your files
+### ⏱️ Game Timers
+- Configurable game start, halftime, and end times
+- Live countdown timers during gameplay
+- Automatic timer visibility based on game schedule
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+### 📊 Export & Settings
+- Export game reports with full roster and scores
+- Customizable team names
+- Flexible gender ratio modes
+- Reset game functionality
 
+## Getting Started
+
+### Installation
+
+```bash
+npm install
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/rrektor-group/score-app.git
-git branch -M main
-git push -uf origin main
+
+### Development
+
+```bash
+npm run dev
 ```
 
-## Integrate with your tools
+The app will be available at `http://localhost:3000`
 
-- [ ] [Set up project integrations](https://gitlab.com/rrektor-group/score-app/-/settings/integrations)
+### Build for Production
 
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+npm run build
+```
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Game Flow
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+1. **Enter Team Name**: Start by entering your team name on the home screen
+2. **Add Players**: Add each player one by one (name + gender)
+   - Press Enter to quickly add players
+   - See real-time stats as you add players
+   - Remove players if you made a mistake
+3. **Start Game**: Once you have at least one player, click "Start Game"
+4. **Configure Settings**: Set opponent name, game times, and gender ratio mode
+5. **Track Score**: Click on team score cards to increment points
+6. **Line Rotation**: Lines automatically rotate after each point
+7. **Late Arrivals**: Use the "+" button to add players mid-game
+8. **Undo**: Made a mistake? Click "UNDO" to revert the last score
+9. **Export**: Download a game report from the settings menu
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+### Player Entry Tips
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- **Quick Entry**: Type name → Select gender → Press Enter → Repeat
+- **Gender Toggle**: Click "Open" or "Women" button to select
+- **Remove Players**: Click the "×" button on any player card
+- **Stats Display**: Monitor player counts as you build your roster
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## Local Storage
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+The app uses browser localStorage to persist:
+- Recent team names (last 5 teams)
+- Quick access to previously used team names
+
+**Note**: Rosters are NOT saved - you add players fresh each game. This ensures you only track the players who are actually present.
+
+## Future Enhancements
+
+- Database integration for multi-device sync
+- User authentication
+- Save roster templates per team
+- Historical game statistics
+- Advanced analytics and player stats
+- Import/export rosters
+
+## Technology Stack
+
+- React 19
+- TypeScript
+- Vite
+- @dnd-kit (drag-and-drop)
+- React Spring (animations)
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Private project
 
-<!-- Trigger pipeline -->
+## Author
 
-<!-- Another manual trigger test -->
+Randy Rektor

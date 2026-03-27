@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clear Storage - Ultimate Score App</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1d1d1d;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    .container {
+      background: rgba(45, 45, 45, 0.8);
+      padding: 40px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.22);
+      max-width: 500px;
+    }
+    button {
+      background: #4a90e2;
+      color: white;
+      border: none;
+      padding: 16px 32px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 10px;
+    }
+    button:hover {
+      background: #357abd;
+    }
+    .success {
+      color: #2ecc71;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Clear Storage</h1>
+    <p>Click the button below to clear all saved data and start fresh</p>
+    <button onclick="clearStorage()">Clear Storage & Reload</button>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    function clearStorage() {
+      localStorage.clear();
+      sessionStorage.clear();
+      document.getElementById('message').innerHTML = '<p class="success">✓ Storage cleared! Redirecting...</p>';
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

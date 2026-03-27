@@ -1,1 +1,1 @@
-export { PlayerManagerWeb as PlayerManager } from './PlayerManagerWeb'; 
+export { PlayerManagerWeb as PlayerManager } from './PlayerManagerWeb';
