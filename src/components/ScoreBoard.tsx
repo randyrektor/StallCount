@@ -14,8 +14,6 @@ const COLORS = {
   women: '#e83e8c', // Modern pink
   openMuted: 'rgba(74, 144, 226, 0.5)',
   womenMuted: 'rgba(232, 62, 140, 0.5)',
-  scoreButtonMinus: '#e74c3c',
-  scoreButtonPlus: '#2ecc71',
   border: '#404040',
   input: '#333333',
   delete: '#e74c3c',
@@ -95,11 +93,7 @@ interface ScoreBoardProps {
   womanQueue: Player[];
   nextOpenQueue: Player[];
   nextWomanQueue: Player[];
-  lineHistory: any[];
   scoreHistory: any[];
-  onLateArrival: (player: Player) => void;
-  pendingPlayers: Player[];
-  gameStarted: boolean;
   onSubstitute?: (outPlayer: Player, inPlayer: Player) => void;
 }
 

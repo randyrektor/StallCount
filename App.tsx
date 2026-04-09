@@ -22,6 +22,7 @@ import {
   applyPendingActivationsToQueues,
 } from './src/utils/rosterManagerLogic';
 import { COLORS } from './src/constants';
+import { loadRosterForTeam, saveRosterForTeam } from './src/utils/rosterStorage';
 import './src/global.css';
 import { GradientBlobs } from './src/components/ScoreBoard';
 
@@ -29,14 +30,6 @@ import { GradientBlobs } from './src/components/ScoreBoard';
 
 const assignNumbers = assignNumbersByGender;
 
-interface LineState {
-  openQueue: Player[];
-  womanQueue: Player[];
-  lineIndex: number;
-  pointNumber: number;
-}
-
-// Add a new type for score history
 interface ScoreEvent {
   team: 1 | 2;
   lineIndex: number;
@@ -59,7 +52,6 @@ export default function App() {
   const [pendingPlayers, setPendingPlayers] = useState<Player[]>([]);
   const [lineIndex, setLineIndex] = useState(0);
   const [pointNumber, setPointNumber] = useState(1);
-  const [lineHistory, setLineHistory] = useState<LineState[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [gameStartTime, setGameStartTime] = useState<string>('18:45'); // 7:00pm default
   const [halftimeTime, setHalftimeTime] = useState<string>('19:30');   // 7:30pm default
@@ -67,7 +59,6 @@ export default function App() {
   const [genderRatioMode, setGenderRatioMode] = useState<GenderRatioMode>('ABBA');
   const [lineupSize, setLineupSize] = useState<LineupSize>(7);
   const [scoreHistory, setScoreHistory] = useState<ScoreEvent[]>([]);
-  const [gameStarted, setGameStarted] = useState(false);
 
   // Countdown logic (moved from ScoreBoard)
   const [halftimeCountdown, setHalftimeCountdown] = useState('');
@@ -99,21 +90,48 @@ export default function App() {
     }
   }, []);
 
-  const handleStartGame = (teamName: string) => {
-    setTeam1Name(teamName);
-    setShowHomeScreen(false);
-    setShowRosterSetup(true); // Show roster setup after team name
-  };
+  const resetScoreboardForNewSession = useCallback(() => {
+    setTeam1Score(0);
+    setTeam2Score(0);
+    setLineIndex(0);
+    setPointNumber(1);
+    setScoreHistory([]);
+    setOpenIndex(0);
+    setWomenIndex(0);
+    setPendingPlayers([]);
+  }, []);
 
-  const handleRosterComplete = (newRoster: Player[]) => {
+  const applyNewGameRoster = useCallback((newRoster: Player[]) => {
     setRoster(newRoster);
-    setShowRosterSetup(false);
-    const openPlayers = newRoster.filter(p => p.gender === 'O');
-    const womenPlayers = newRoster.filter(p => p.gender === 'W');
+    const openPlayers = newRoster.filter((p) => p.gender === 'O');
+    const womenPlayers = newRoster.filter((p) => p.gender === 'W');
     setMasterOpenQueue(openPlayers);
     setMasterWomenQueue(womenPlayers);
     setOpenIndex(0);
     setWomenIndex(0);
+  }, []);
+
+  const handleStartGame = (teamName: string) => {
+    const trimmed = teamName.trim();
+    resetScoreboardForNewSession();
+    setTeam1Name(trimmed);
+    setShowHomeScreen(false);
+
+    const saved = loadRosterForTeam(trimmed);
+    if (saved && saved.length > 0) {
+      applyNewGameRoster(saved);
+      setShowRosterSetup(false);
+    } else {
+      setRoster([]);
+      setMasterOpenQueue([]);
+      setMasterWomenQueue([]);
+      setShowRosterSetup(true);
+    }
+  };
+
+  const handleRosterComplete = (newRoster: Player[]) => {
+    applyNewGameRoster(newRoster);
+    setShowRosterSetup(false);
   };
 
   const handleBackToHomeScreen = () => {
@@ -219,43 +237,43 @@ export default function App() {
   const currentWomanQueue = getWrapped(masterWomenQueue, normalizedWomenIndex, currentPattern.women);
 
   const handleTeam1ScoreChange = (newScore: number) => {
-    if (newScore > team1Score) {
-      const currentPattern = getPattern(lineIndex);
-      setScoreHistory(prev => [...prev, {
+    if (newScore <= team1Score) return;
+    const currentPattern = getPattern(lineIndex);
+    setScoreHistory((prev) => [
+      ...prev,
+      {
         team: 1,
         lineIndex,
         pointNumber,
         openIndex,
         womenIndex,
-      }]);
-      setTeam1Score(newScore);
-      setOpenIndex(prev => prev + currentPattern.men);
-      setWomenIndex(prev => prev + currentPattern.women);
-      setLineIndex(prev => prev + 1);
-      setPointNumber(prev => prev + 1);
-    } else {
-      setTeam1Score(newScore);
-    }
+      },
+    ]);
+    setTeam1Score(newScore);
+    setOpenIndex((prev) => prev + currentPattern.men);
+    setWomenIndex((prev) => prev + currentPattern.women);
+    setLineIndex((prev) => prev + 1);
+    setPointNumber((prev) => prev + 1);
   };
 
   const handleTeam2ScoreChange = (newScore: number) => {
-    if (newScore > team2Score) {
-      const currentPattern = getPattern(lineIndex);
-      setScoreHistory(prev => [...prev, {
+    if (newScore <= team2Score) return;
+    const currentPattern = getPattern(lineIndex);
+    setScoreHistory((prev) => [
+      ...prev,
+      {
         team: 2,
         lineIndex,
         pointNumber,
         openIndex,
         womenIndex,
-      }]);
-      setTeam2Score(newScore);
-      setOpenIndex(prev => prev + currentPattern.men);
-      setWomenIndex(prev => prev + currentPattern.women);
-      setLineIndex(prev => prev + 1);
-      setPointNumber(prev => prev + 1);
-    } else {
-      setTeam2Score(newScore);
-    }
+      },
+    ]);
+    setTeam2Score(newScore);
+    setOpenIndex((prev) => prev + currentPattern.men);
+    setWomenIndex((prev) => prev + currentPattern.women);
+    setLineIndex((prev) => prev + 1);
+    setPointNumber((prev) => prev + 1);
   };
 
   const handleSubstitute = useCallback(
@@ -295,9 +313,7 @@ export default function App() {
     setTeam2Score(0);
     setLineIndex(0);
     setPointNumber(1);
-    setLineHistory([]);
     setScoreHistory([]);
-    setGameStarted(false);
     setOpenIndex(0);
     setWomenIndex(0);
   };
@@ -323,30 +339,6 @@ export default function App() {
     
     // Remove the last event from history
     setScoreHistory(prev => prev.slice(0, -1));
-  };
-
-  const handlePointNumberChange = (point: number) => {
-    setPointNumber(point);
-  };
-
-  const handleLineIndexChange = (index: number) => {
-    // Save current line state to history
-    const currentLineState: LineState = {
-      openQueue: currentOpenQueue,
-      womanQueue: currentWomanQueue,
-      lineIndex,
-      pointNumber,
-    };
-    setLineHistory(prev => [...prev, currentLineState]);
-    
-    // Update indices
-    const currentPattern = getPattern(lineIndex);
-    const nextPattern = getPattern(index);
-    
-    setOpenIndex(prev => prev + currentPattern.men);
-    setWomenIndex(prev => prev + currentPattern.women);
-    setLineIndex(index);
-    setPointNumber(1);
   };
 
   const onRosterChange = (newRoster: Player[]) => {
@@ -530,6 +522,13 @@ export default function App() {
     });
   }, [masterOpenQueue, masterWomenQueue]);
 
+  useEffect(() => {
+    if (showHomeScreen || showRosterSetup) return;
+    const key = team1Name.trim();
+    if (!key) return;
+    saveRosterForTeam(key, roster);
+  }, [roster, team1Name, showHomeScreen, showRosterSetup]);
+
   // Show loading state briefly while checking localStorage
   if (showHomeScreen === null) {
     return (
@@ -579,11 +578,7 @@ export default function App() {
           womanQueue={currentWomanQueue}
           nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
           nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
-          lineHistory={lineHistory}
           scoreHistory={scoreHistory}
-          onLateArrival={handleLateArrival}
-          pendingPlayers={pendingPlayers}
-          gameStarted={gameStarted}
           onSubstitute={handleSubstitute}
         />
       </div>
