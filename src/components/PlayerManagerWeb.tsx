@@ -3,24 +3,21 @@ import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSe
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Player } from '../types';
-import { commonStyles, playerCardStyle } from '../styles/common';
+import { playerCardStyle } from '../styles/common';
+import { THEME } from '../constants';
 
-// Modern color palette (matching ScoreBoard)
 const COLORS = {
-  background: '#1a1a1a',
-  card: '#2d2d2d',
-  text: '#ffffff',
-  textSecondary: '#b3b3b3',
-  open: '#4a90e2', // Modern blue
-  women: '#e83e8c', // Modern pink
-  openMuted: 'rgba(50, 74, 106, 0.3)',
-  womenMuted: 'rgba(106, 50, 74, 0.3)',
-  delete: '#e74c3c',
-  add: '#2ecc71',
-  border: '#404040',
-  input: '#3d3d3d',
-  handle: '#666666',
-  section: '#383838',
+  background: THEME.bgPage,
+  card: THEME.bgElevated,
+  text: THEME.text,
+  textSecondary: THEME.textSecondary,
+  open: THEME.open,
+  women: THEME.women,
+  delete: THEME.danger,
+  add: THEME.success,
+  border: THEME.border,
+  input: THEME.bgInput,
+  handle: 'var(--text-muted)',
 };
 
 interface PlayerManagerWebProps {
@@ -118,8 +115,8 @@ function SortablePlayer({
           alignItems: 'center',
           justifyContent: 'center',
           background: player.gender === 'O'
-            ? (isPending ? 'rgba(74,144,226,0.3)' : '#4a90e2')
-            : (isPending ? 'rgba(232,62,140,0.3)' : '#e83e8c'),
+            ? (isPending ? THEME.openTint : THEME.open)
+            : (isPending ? THEME.womenTint : THEME.women),
           position: 'relative',
           opacity: isDragging ? 0.8 : 1,
           transform: CSS.Transform.toString(transform),
@@ -511,14 +508,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   slidePanel: {
     position: 'relative',
-    backgroundColor: '#2d2d2d', // fully opaque for the panel shell
+    backgroundColor: THEME.bgElevated,
     borderTopLeftRadius: '16px',
     borderTopRightRadius: '16px',
     overflow: 'hidden',
     transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     pointerEvents: 'auto',
     boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
-    maxHeight: 'calc(100dvh - env(safe-area-inset-bottom))', // Use dynamic viewport height
+    maxHeight: 'calc(100dvh - env(safe-area-inset-bottom))',
     width: '100%',
   },
   dragHandle: {
@@ -527,7 +524,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'grab',
-    backgroundColor: '#1d1d1d', // fully opaque for the handle
+    backgroundColor: THEME.bgHandle,
     borderTopLeftRadius: '16px',
     borderTopRightRadius: '16px',
     userSelect: 'none',
@@ -540,11 +537,11 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '2px',
   },
   panelContent: {
-    padding: '0px 20px 20px 20px', // even tighter top padding
-    maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-bottom))', // Full height minus handle and safe area
+    padding: '0px 20px 20px 20px',
+    maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-bottom))',
     overflowY: 'auto',
-    overflowX: 'hidden', // Prevent horizontal scroll
-    backgroundColor: '#1d1d1d', // match ScoreBoard background
+    overflowX: 'hidden',
+    backgroundColor: THEME.bgApp,
     WebkitOverflowScrolling: 'touch',
     width: '100%',
     boxSizing: 'border-box',
@@ -554,7 +551,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'height 0.3s ease-in-out, opacity 0.3s ease-in-out',
   },
   managerContent: {
-    backgroundColor: 'rgba(45, 45, 45, 0.8)',
+    backgroundColor: THEME.bgPanelStrong,
     borderRadius: '12px',
     padding: '20px',
   },
@@ -578,28 +575,28 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '10px 20px',
     border: 'none',
     borderRadius: '6px',
-    backgroundColor: '#232323', // subtle gray for inactive
+    backgroundColor: THEME.bgInput,
     color: COLORS.textSecondary,
     cursor: 'pointer',
     fontWeight: 600,
     fontSize: '14px',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+    boxShadow: THEME.shadowButton,
     transition: 'background 0.2s, color 0.2s',
   },
   genderButtonActiveOpen: {
     backgroundColor: COLORS.open,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     boxShadow: '0 2px 8px rgba(74,144,226,0.10)',
   },
   genderButtonActiveWomen: {
     backgroundColor: COLORS.women,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     boxShadow: '0 2px 8px rgba(232,62,140,0.10)',
   },
   addButton: {
     padding: '10px 20px',
     backgroundColor: COLORS.add,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer'
@@ -617,17 +614,17 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     cursor: 'pointer',
     backgroundColor: COLORS.add,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     transition: 'background 0.2s',
   },
   editButton: {
     backgroundColor: COLORS.delete,
-    color: '#fff',
+    color: THEME.textOnAccent,
   },
   rosterContainer: {
     display: 'flex',
     gap: '12px',
-    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    backgroundColor: THEME.bgPanel,
     borderRadius: '12px',
     padding: '12px 20px 20px 20px',
     border: `1px solid ${COLORS.border}`,
@@ -667,7 +664,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'grab',
   },
   playerName: {
-    color: '#fff',
+    color: THEME.textOnAccent,
     fontWeight: 500,
     textAlign: 'center',
     width: '100%',
@@ -675,14 +672,15 @@ const styles: Record<string, React.CSSProperties> = {
     paddingRight: 0,
   },
   pendingBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    color: THEME.textOnAccent,
     padding: '2px 6px',
     borderRadius: '4px',
     fontSize: '10.5px'
   },
   deleteButton: {
     backgroundColor: COLORS.delete,
-    color: 'white',
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '50%',
     width: '20px',
@@ -694,7 +692,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   editModeActive: {
     backgroundColor: COLORS.delete,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     borderColor: COLORS.delete
   },
   addPlayerSectionNew: {
@@ -721,7 +719,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: '12px 0',
     backgroundColor: COLORS.add,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '6px',
     fontWeight: '600',
@@ -733,7 +731,7 @@ const styles: Record<string, React.CSSProperties> = {
   toggleButton: {
     padding: '10px 20px',
     backgroundColor: COLORS.add,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
@@ -744,7 +742,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0,0,0,0.35)',
+    background: THEME.bgBackdrop,
     zIndex: 1000,
     transition: 'opacity 0.3s',
     pointerEvents: 'auto',
@@ -757,8 +755,8 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     fontWeight: 600,
     fontSize: 15,
-    color: '#b3b3b3',
-    background: 'rgba(83, 0, 0, 0.08)',
+    color: THEME.textSecondary,
+    background: THEME.bgSubtle,
     borderRadius: '6px',
     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
   },
@@ -767,7 +765,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'stretch',
     gap: '0',
-    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    backgroundColor: THEME.bgPanel,
     borderRadius: '12px',
     padding: '10px',
     marginBottom: '10px',
@@ -789,7 +787,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: '16px 0',
     backgroundColor: COLORS.add,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '8px',
     fontWeight: '600',
@@ -801,7 +799,7 @@ const styles: Record<string, React.CSSProperties> = {
   iconEditButton: {
     background: 'none',
     border: 'none',
-    color: '#b3b3b3',
+    color: COLORS.textSecondary,
     fontSize: '20px',
     cursor: 'pointer',
     padding: '2px 6px',
@@ -811,7 +809,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   iconEditButtonActive: {
     color: COLORS.delete,
-    background: 'rgba(231,76,60,0.08)',
+    background: THEME.dangerTint,
   },
   doneButtonRow: {
     display: 'flex',
@@ -821,7 +819,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   doneButton: {
     background: COLORS.add,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '6px',
     fontWeight: 600,
@@ -841,7 +839,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '10px',
     padding: '8px 10px',
     borderRadius: '8px',
-    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    backgroundColor: THEME.bgPanel,
     border: `1px solid ${COLORS.border}`,
     lineHeight: 1.4,
   },
@@ -856,7 +854,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     borderRadius: '4px',
     backgroundColor: COLORS.add,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     cursor: 'pointer',
     zIndex: 2,
   },

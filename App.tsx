@@ -1,6 +1,6 @@
 // ScoreboardApp.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Player, type GenderRatioMode, type LineupSize } from './src/types';
+import { Player, type GenderRatioMode, type LineupSize, type StartsOn, type Theme } from './src/types';
 import { PlayerManager } from './src/components/PlayerManager';
 import { ScoreBoard } from './src/components/ScoreBoard';
 import { SettingsModal } from './src/components/SettingsModal';
@@ -58,6 +58,25 @@ export default function App() {
   const [endTime, setEndTime] = useState<string>('20:15');             // 8:15pm default
   const [genderRatioMode, setGenderRatioMode] = useState<GenderRatioMode>('ABBA');
   const [lineupSize, setLineupSize] = useState<LineupSize>(7);
+  const [startsOn, setStartsOn] = useState<StartsOn>(() => {
+    if (typeof window === 'undefined') return 'O';
+    const saved = window.localStorage.getItem('ultimate-starts-on');
+    if (saved === 'O' || saved === 'W') return saved;
+    // Migration: previous version stored a numeric pattern offset (0-3 for ABBA,
+    // 0-2 for AAB). Offsets 1+ mostly indicated a woman-matching start.
+    const legacy = window.localStorage.getItem('ultimate-pattern-start-offset');
+    if (legacy != null) {
+      const parsed = Number.parseInt(legacy, 10);
+      window.localStorage.removeItem('ultimate-pattern-start-offset');
+      if (Number.isFinite(parsed) && parsed !== 0) return 'W';
+    }
+    return 'O';
+  });
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const saved = window.localStorage.getItem('ultimate-theme');
+    return saved === 'light' ? 'light' : 'dark';
+  });
   const [scoreHistory, setScoreHistory] = useState<ScoreEvent[]>([]);
 
   // Countdown logic (moved from ScoreBoard)
@@ -148,8 +167,8 @@ export default function App() {
 
   // Calculate total players used so far for proper rotation
   const getPattern = useCallback(
-    (idx: number) => getGenderPattern(idx, genderRatioMode, lineupSize),
-    [genderRatioMode, lineupSize]
+    (idx: number) => getGenderPattern(idx, genderRatioMode, lineupSize, startsOn),
+    [genderRatioMode, lineupSize, startsOn]
   );
 
   // Web-compatible orientation lock (CSS-based)
@@ -163,6 +182,25 @@ export default function App() {
     };
     lockOrientation();
   }, []);
+
+  // Apply + persist the active theme. CSS vars in global.css respond to data-theme.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem('ultimate-theme', theme);
+    } catch {
+      // localStorage can throw in private modes; theme just won't persist.
+    }
+  }, [theme]);
+
+  // Persist starts-on choice so a game-day setting survives a page reload.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('ultimate-starts-on', startsOn);
+    } catch {
+      // ignore quota errors
+    }
+  }, [startsOn]);
 
   useEffect(() => {
     function parseTimeToDate(timeStr: string | undefined): Date | null {
@@ -476,6 +514,7 @@ export default function App() {
       pointNumber,
       genderRatioMode,
       lineupSize,
+      startsOn,
     });
 
     if (activate.length > 0) {
@@ -488,7 +527,7 @@ export default function App() {
       setMasterWomenQueue(applied.masterWomenQueue);
       setPendingPlayers(stillPending);
     }
-  }, [lineIndex, openIndex, womenIndex, pointNumber, genderRatioMode, lineupSize]);
+  }, [lineIndex, openIndex, womenIndex, pointNumber, genderRatioMode, lineupSize, startsOn]);
 
   // Add effect to handle gender ratio mode changes
   useEffect(() => {
@@ -504,7 +543,7 @@ export default function App() {
     setMasterWomenQueue(newWomenPlayers);
     setOpenIndex(newOpenIndex);
     setWomenIndex(newWomenIndex);
-  }, [genderRatioMode, lineupSize]);
+  }, [genderRatioMode, lineupSize, startsOn]);
 
   // Roster order follows master queues + extras (pending / edge); keeps subs and queue-only updates in sync.
   useEffect(() => {
@@ -569,6 +608,7 @@ export default function App() {
           onUndo={handleUndo}
           genderRatioMode={genderRatioMode}
           lineupSize={lineupSize}
+          startsOn={startsOn}
           halftimeCountdown={halftimeCountdown}
           endCountdown={endCountdown}
           showTimers={showTimers}
@@ -609,6 +649,10 @@ export default function App() {
         onGenderRatioModeChange={setGenderRatioMode}
         lineupSize={lineupSize}
         onLineupSizeChange={setLineupSize}
+        startsOn={startsOn}
+        onStartsOnChange={setStartsOn}
+        theme={theme}
+        onThemeChange={setTheme}
         onReset={handleReset}
         onChangeTeam={handleChangeTeam}
         team1Score={team1Score}

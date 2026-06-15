@@ -1,4 +1,4 @@
-import type { Player, GenderRatioMode, LineupSize } from '../types';
+import type { Player, GenderRatioMode, LineupSize, StartsOn } from '../types';
 import { getLine } from './lineRotation';
 import {
   getGenderPattern,
@@ -15,12 +15,14 @@ export function lateArrivalWouldDisplaceCurrentLine(params: {
   lineIndex: number;
   genderRatioMode: GenderRatioMode;
   lineupSize: LineupSize;
+  startsOn?: StartsOn;
   newPlayer: Player;
 }): boolean {
   const pattern = getGenderPattern(
     params.lineIndex,
     params.genderRatioMode,
-    params.lineupSize
+    params.lineupSize,
+    params.startsOn ?? 'O'
   );
   const normalizedOpenIndex =
     params.masterOpenQueue.length > 0
@@ -157,11 +159,13 @@ export function partitionPendingForLineChange(params: {
   pointNumber: number;
   genderRatioMode: GenderRatioMode;
   lineupSize: LineupSize;
+  startsOn?: StartsOn;
 }): { activate: Player[]; stillPending: Player[] } {
   const pattern = getGenderPattern(
     params.lineIndex,
     params.genderRatioMode,
-    params.lineupSize
+    params.lineupSize,
+    params.startsOn ?? 'O'
   );
   const neededOpenCount = pattern.men;
   const neededWomenCount = pattern.women;

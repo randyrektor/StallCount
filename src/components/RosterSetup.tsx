@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Player } from '../types';
-import { COLORS } from '../constants';
+import { COLORS, THEME } from '../constants';
 import { GradientBlobs } from './ScoreBoard';
 
 interface RosterSetupProps {
@@ -138,11 +138,11 @@ export function RosterSetup({ teamName, onComplete, onBack }: RosterSetupProps) 
               </div>
               <div style={styles.stat}>
                 <span style={styles.statLabel}>Open:</span>
-                <span style={{ ...styles.statValue, color: '#4a90e2' }}>{openPlayers.length}</span>
+                <span style={{ ...styles.statValue, color: THEME.open }}>{openPlayers.length}</span>
               </div>
               <div style={styles.stat}>
                 <span style={styles.statLabel}>Women:</span>
-                <span style={{ ...styles.statValue, color: '#e83e8c' }}>{womenPlayers.length}</span>
+                <span style={{ ...styles.statValue, color: THEME.women }}>{womenPlayers.length}</span>
               </div>
             </div>
 
@@ -153,12 +153,12 @@ export function RosterSetup({ teamName, onComplete, onBack }: RosterSetupProps) 
                     key={player.uuid}
                     style={{
                       ...styles.playerCard,
-                      backgroundColor: player.gender === 'O' 
-                        ? 'rgba(74, 144, 226, 0.15)' 
-                        : 'rgba(232, 62, 140, 0.15)',
+                      backgroundColor: player.gender === 'O'
+                        ? THEME.openTint
+                        : THEME.womenTint,
                       borderColor: player.gender === 'O'
-                        ? 'rgba(74, 144, 226, 0.3)'
-                        : 'rgba(232, 62, 140, 0.3)',
+                        ? THEME.openMuted
+                        : THEME.womenMuted,
                     }}
                   >
                     <div style={styles.playerInfo}>
@@ -220,11 +220,11 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: '600px',
   },
   card: {
-    backgroundColor: 'rgba(45, 45, 45, 0.8)',
+    backgroundColor: THEME.bgPanelStrong,
     borderRadius: '16px',
     padding: '32px',
-    border: '1px solid rgba(255,255,255,0.22)',
-    boxShadow: '0 8px 32px 0 rgba(0,0,0,0.37)',
+    border: `1px solid ${THEME.borderStrong}`,
+    boxShadow: THEME.shadowModal,
     backdropFilter: 'blur(10px)',
   },
   header: {
@@ -235,8 +235,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   backButton: {
     backgroundColor: 'transparent',
-    color: '#b3b3b3',
-    border: '1px solid rgba(255,255,255,0.15)',
+    color: THEME.textSecondary,
+    border: `1px solid ${THEME.borderSoft}`,
     padding: '8px 16px',
     borderRadius: '6px',
     fontSize: '14px',
@@ -246,13 +246,13 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontSize: '28px',
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: THEME.text,
     margin: 0,
   },
   subtitle: {
     fontSize: '18px',
     fontWeight: '500',
-    color: '#b3b3b3',
+    color: THEME.textSecondary,
     margin: '0 0 24px 0',
   },
   addPlayerSection: {
@@ -267,17 +267,17 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     padding: '12px 16px',
     fontSize: '15px',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    border: '2px solid rgba(255, 255, 255, 0.15)',
+    backgroundColor: THEME.bgInputSoft,
+    border: `2px solid ${THEME.borderSoft}`,
     borderRadius: '8px',
-    color: '#ffffff',
+    color: THEME.text,
     outline: 'none',
     transition: 'all 0.2s ease',
   },
   genderToggle: {
     display: 'flex',
     gap: '4px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: THEME.bgSubtle,
     borderRadius: '6px',
     padding: '4px',
   },
@@ -286,26 +286,26 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     fontWeight: '600',
     backgroundColor: 'transparent',
-    color: '#b3b3b3',
+    color: THEME.textSecondary,
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
   },
   genderButtonActive: {
-    backgroundColor: '#4a90e2',
-    color: '#ffffff',
+    backgroundColor: THEME.open,
+    color: THEME.textOnAccent,
   },
   genderButtonActiveWomen: {
-    backgroundColor: '#e83e8c',
-    color: '#ffffff',
+    backgroundColor: THEME.women,
+    color: THEME.textOnAccent,
   },
   addButton: {
     padding: '12px 24px',
     fontSize: '15px',
     fontWeight: 'bold',
-    backgroundColor: '#2ecc71',
-    color: '#ffffff',
+    backgroundColor: THEME.success,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
@@ -320,7 +320,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '16px',
     marginBottom: '16px',
     padding: '12px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: THEME.bgSubtle,
     borderRadius: '8px',
   },
   stat: {
@@ -331,12 +331,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statLabel: {
     fontSize: '12px',
-    color: '#b3b3b3',
+    color: THEME.textSecondary,
     fontWeight: '500',
   },
   statValue: {
     fontSize: '20px',
-    color: '#ffffff',
+    color: THEME.text,
     fontWeight: 'bold',
   },
   playerList: {
@@ -364,16 +364,16 @@ const styles: Record<string, React.CSSProperties> = {
   playerName: {
     fontSize: '15px',
     fontWeight: '600',
-    color: '#ffffff',
+    color: THEME.text,
   },
   playerGender: {
     fontSize: '12px',
-    color: '#b3b3b3',
+    color: THEME.textSecondary,
   },
   removeButton: {
-    backgroundColor: 'rgba(231, 76, 60, 0.2)',
-    color: '#e74c3c',
-    border: '1px solid rgba(231, 76, 60, 0.3)',
+    backgroundColor: THEME.dangerTint,
+    color: THEME.danger,
+    border: `1px solid ${THEME.dangerBorder}`,
     padding: '4px 12px',
     borderRadius: '6px',
     fontSize: '20px',
@@ -388,12 +388,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   emptyText: {
     fontSize: '16px',
-    color: '#b3b3b3',
+    color: THEME.textSecondary,
     margin: '0 0 8px 0',
   },
   emptyHint: {
     fontSize: '14px',
-    color: '#666666',
+    color: THEME.textMuted,
     margin: 0,
   },
   startButton: {
@@ -401,12 +401,12 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     fontSize: '18px',
     fontWeight: 'bold',
-    backgroundColor: '#4a90e2',
-    color: '#ffffff',
+    backgroundColor: THEME.open,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    boxShadow: '0 4px 12px rgba(74, 144, 226, 0.3)',
+    boxShadow: THEME.shadowCta,
   },
 };

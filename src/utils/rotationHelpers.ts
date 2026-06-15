@@ -1,4 +1,4 @@
-import { Player, type GenderRatioMode, type LineupSize } from '../types';
+import { Player, type GenderRatioMode, type LineupSize, type StartsOn } from '../types';
 import { getWrapped as getWrappedLine } from './lineRotation';
 
 /** More open players (4-3 style at 7v7). */
@@ -17,29 +17,47 @@ const WOMEN_HEAVY: Record<LineupSize, { men: number; women: number }> = {
   4: { men: 1, women: 3 },
 };
 
-/** Open (O) / Women (W) counts for the line at this point index. Always sums to `lineupSize`. */
+/** True for cyclic modes (ABBA, AAB) where the "starts on" choice matters. */
+export function modeHasStartingPoint(mode: GenderRatioMode): boolean {
+  return mode === 'ABBA' || mode === 'AAB';
+}
+
+/** Length of the rotation cycle. 4 for ABBA, 3 for AAB, 1 for fixed modes. */
+export function getCycleLengthForMode(mode: GenderRatioMode): number {
+  if (mode === 'ABBA') return 4;
+  if (mode === 'AAB') return 3;
+  return 1;
+}
+
+/**
+ * Open (O) / Women (W) counts for the line at this point index. Always sums to
+ * `lineupSize`. For cyclic modes (ABBA, AAB), `startsOn` controls which gender
+ * dominates point 1 of the half; for fixed modes it's ignored.
+ */
 export function getGenderPattern(
   lineIndex: number,
   mode: GenderRatioMode,
-  lineupSize: LineupSize = 7
+  lineupSize: LineupSize = 7,
+  startsOn: StartsOn = 'O'
 ): { men: number; women: number } {
   if (mode === '4-3') return OPEN_HEAVY[lineupSize];
   if (mode === '3-4') return WOMEN_HEAVY[lineupSize];
   if (mode === 'MEN') return { men: lineupSize, women: 0 };
   if (mode === 'WOMEN') return { men: 0, women: lineupSize };
-  if (mode === 'AAB-MW') {
-    const mod = lineIndex % 3;
-    if (mod === 0 || mod === 1) return OPEN_HEAVY[lineupSize];
-    return WOMEN_HEAVY[lineupSize];
+
+  // For cyclic modes: position 0 of the canonical cycle is always "A" (the
+  // starting gender's heavy point); other positions follow the cycle.
+  const startingHeavy = startsOn === 'O' ? OPEN_HEAVY : WOMEN_HEAVY;
+  const oppositeHeavy = startsOn === 'O' ? WOMEN_HEAVY : OPEN_HEAVY;
+  if (mode === 'AAB') {
+    const mod = ((lineIndex % 3) + 3) % 3;
+    // A A B
+    return mod === 2 ? oppositeHeavy[lineupSize] : startingHeavy[lineupSize];
   }
-  if (mode === 'AAB-WM') {
-    const mod = lineIndex % 3;
-    if (mod === 0 || mod === 1) return WOMEN_HEAVY[lineupSize];
-    return OPEN_HEAVY[lineupSize];
-  }
-  const mod = lineIndex % 4;
-  if (mod === 0 || mod === 3) return OPEN_HEAVY[lineupSize];
-  return WOMEN_HEAVY[lineupSize];
+  // ABBA
+  const mod = ((lineIndex % 4) + 4) % 4;
+  // A B B A
+  return mod === 0 || mod === 3 ? startingHeavy[lineupSize] : oppositeHeavy[lineupSize];
 }
 
 /**

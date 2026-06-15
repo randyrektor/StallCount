@@ -1,29 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Player, type GenderRatioMode, type LineupSize } from '../types';
+import { Player, type GenderRatioMode, type LineupSize, type StartsOn } from '../types';
 import { getGenderPattern } from '../utils/rotationHelpers';
 import { getLine } from '../utils/lineRotation';
-import { commonStyles } from '../styles/common';
+import { THEME } from '../constants';
 
-// Modern color palette
 const COLORS = {
-  background: '#1d1d1d',
-  card: '#2d2d2d',
-  text: '#ffffff',
-  textSecondary: '#b3b3b3',
-  open: '#4a90e2', // Modern blue
-  women: '#e83e8c', // Modern pink
-  openMuted: 'rgba(74, 144, 226, 0.5)',
-  womenMuted: 'rgba(232, 62, 140, 0.5)',
-  border: '#404040',
-  input: '#333333',
-  delete: '#e74c3c',
+  background: THEME.bgApp,
+  card: THEME.bgElevated,
+  text: THEME.text,
+  textSecondary: THEME.textSecondary,
+  open: THEME.open,
+  women: THEME.women,
+  openMuted: THEME.openMuted,
+  womenMuted: THEME.womenMuted,
+  border: THEME.border,
+  input: THEME.bgInput,
+  delete: THEME.danger,
 };
 
 function normSubName(name: string): string {
   return name.trim().toLowerCase();
 }
 
-// Gradient blob colors
+// Decorative blob tints (only render in dark mode; CSS hides them in light mode)
 const BLOB_COLORS = {
   blue: 'rgba(74, 144, 226, 0.15)',
   pink: 'rgba(232, 62, 140, 0.15)',
@@ -84,6 +83,7 @@ interface ScoreBoardProps {
   onUndo: () => void;
   genderRatioMode?: GenderRatioMode;
   lineupSize?: LineupSize;
+  startsOn?: StartsOn;
   halftimeCountdown: string;
   endCountdown: string;
   showTimers: boolean;
@@ -110,6 +110,7 @@ export function ScoreBoard({
   onUndo,
   genderRatioMode = 'ABBA',
   lineupSize = 7,
+  startsOn = 'O',
   halftimeCountdown,
   endCountdown,
   showTimers,
@@ -122,8 +123,10 @@ export function ScoreBoard({
   scoreHistory,
   onSubstitute,
 }: ScoreBoardProps) {
-  const patternIndexAbba = lineIndex % 4;
-  const patternIndexAab = lineIndex % 3;
+  const abbaPattern = ['A', 'B', 'B', 'A'] as const;
+  const aabPattern = ['A', 'A', 'B'] as const;
+  const patternIndexAbba = ((lineIndex % 4) + 4) % 4;
+  const patternIndexAab = ((lineIndex % 3) + 3) % 3;
   const [isAnimating, setIsAnimating] = useState(false);
   const [flashTeam1, setFlashTeam1] = useState(false);
   const [flashTeam2, setFlashTeam2] = useState(false);
@@ -137,10 +140,10 @@ export function ScoreBoard({
   const openPlayers = openQueue;
   const womenPlayers = womanQueue;
 
-  const currentPattern = getGenderPattern(lineIndex, genderRatioMode, lineupSize);
+  const currentPattern = getGenderPattern(lineIndex, genderRatioMode, lineupSize, startsOn);
   const currentLine = getLine(openPlayers, womenPlayers, currentPattern);
 
-  const nextPattern = getGenderPattern(lineIndex + 1, genderRatioMode, lineupSize);
+  const nextPattern = getGenderPattern(lineIndex + 1, genderRatioMode, lineupSize, startsOn);
   const nextLine = getLine(nextOpenQueue, nextWomanQueue, nextPattern);
 
   const scoreDiff = team1Score - team2Score;
@@ -239,17 +242,17 @@ export function ScoreBoard({
     alignItems: 'center',
     minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
     padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
-    background: 'rgba(255,255,255,0.05)',
+    background: THEME.bgSubtle,
     position: 'relative' as any,
   };
   const scoreDiffStyle = {
     ...styles.scoreDiff,
     fontSize: isMobile ? '24px' : '28px',
     fontWeight: 700,
-    color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+    color: scoreDiff > 0 ? THEME.success : scoreDiff < 0 ? THEME.danger : COLORS.text,
     minWidth: '36px',
     textAlign: 'center' as const,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: THEME.bgInputSoft,
     borderRadius: '5.5px',
     padding: '0 8.5px',
   };
@@ -403,7 +406,7 @@ export function ScoreBoard({
               <div style={{
                 ...styles.scoreDiff,
                 fontSize: '18px',
-                color: scoreDiff > 0 ? '#2ecc71' : scoreDiff < 0 ? '#e74c3c' : COLORS.text,
+                color: scoreDiff > 0 ? THEME.success : scoreDiff < 0 ? THEME.danger : COLORS.text,
                 margin: 0,
                 alignSelf: 'center',
                 display: 'inline-block',
@@ -426,7 +429,7 @@ export function ScoreBoard({
               zIndex: 1,
             }}>
               <div style={styles.patternDisplay}>
-                {['A', 'B', 'B', 'A'].map((p, i) => (
+                {abbaPattern.map((p, i) => (
                   <div key={i} style={{ ...styles.patternItem, ...(patternIndexAbba === i ? styles.patternItemActive : {}) }}>
                     <span style={styles.patternText}>{p}</span>
                   </div>
@@ -434,7 +437,7 @@ export function ScoreBoard({
               </div>
             </div>
           )}
-          {(genderRatioMode === 'AAB-MW' || genderRatioMode === 'AAB-WM') && (
+          {genderRatioMode === 'AAB' && (
             <div style={{
               position: 'absolute',
               right: 0,
@@ -447,7 +450,7 @@ export function ScoreBoard({
               zIndex: 1,
             }}>
               <div style={styles.patternDisplay}>
-                {['A', 'A', 'B'].map((p, i) => (
+                {aabPattern.map((p, i) => (
                   <div key={i} style={{ ...styles.patternItem, ...(patternIndexAab === i ? styles.patternItemActive : {}) }}>
                     <span style={styles.patternText}>{p}</span>
                   </div>
@@ -581,11 +584,11 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '8.5px',
-    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    backgroundColor: THEME.bgPanel,
     borderRadius: '11px',
     marginBottom: '17px',
-    border: '.5px solid rgba(255,255,255,0.22)',
-    boxShadow: '0 4px 24px 0 rgba(0,0,0,0.18)',
+    border: `.5px solid ${THEME.borderStrong}`,
+    boxShadow: THEME.shadowCard,
   },
   scoreContainer: {
     display: 'flex',
@@ -597,7 +600,7 @@ const styles: Record<string, React.CSSProperties> = {
   teamDisplay: {
     textAlign: 'center',
     flex: 1,
-    background: 'rgba(255, 255, 255, 0.05)',
+    background: THEME.bgSubtle,
     border: '2px solid transparent',
     borderRadius: '11px',
     color: 'inherit',
@@ -622,26 +625,26 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold', 
     color: COLORS.text,
   },
-  scoreDiff: { 
-    fontSize: '22px', 
-    fontWeight: '600', 
-    color: COLORS.text, 
+  scoreDiff: {
+    fontSize: '22px',
+    fontWeight: '600',
+    color: COLORS.text,
     padding: '0 8.5px',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: THEME.bgInputSoft,
     borderRadius: '5.5px',
     minWidth: '36px',
     textAlign: 'center'
   },
   settingsButton: {
     backgroundColor: COLORS.open,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     border: 'none',
     padding: '10px 20px',
     borderRadius: '6px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+    boxShadow: THEME.shadowButton,
     transition: 'background 0.2s, color 0.2s',
   },
 
@@ -650,11 +653,11 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '8.5px',
-    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    backgroundColor: THEME.bgPanel,
     borderRadius: '7.5px',
     marginBottom: '17px',
-    border: '.5px solid rgba(255,255,255,0.22)',
-    boxShadow: '0 4px 24px 0 rgba(0,0,0,0.18)',
+    border: `.5px solid ${THEME.borderStrong}`,
+    boxShadow: THEME.shadowCard,
   },
   lineInfoLeft: { display: 'flex', alignItems: 'center', gap: '12.5px' },
   lineInfoText: { fontSize: '15.5px', fontWeight: 'bold', color: COLORS.text },
@@ -662,10 +665,10 @@ const styles: Record<string, React.CSSProperties> = {
   patternItem: {
     padding: '5px 10px',
     borderRadius: '3.5px',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: THEME.patternPillBg,
   },
-  patternItemActive: { backgroundColor: COLORS.open },
-  patternText: { color: COLORS.text, fontSize: '13.5px', fontWeight: 'bold' },
+  patternItemActive: { backgroundColor: THEME.patternPillActiveBg },
+  patternText: { color: THEME.patternPillText, fontSize: '13.5px', fontWeight: 'bold' },
   
   lineDisplay: {
     display: 'flex',
@@ -675,13 +678,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   lineSection: {
     flex: 1,
-    backgroundColor: 'rgba(45, 45, 45, 0.5)',
+    backgroundColor: THEME.bgPanel,
     borderRadius: '7.5px',
     padding: '12.5px',
     display: 'flex',
     flexDirection: 'column',
-    border: '.5px solid rgba(255,255,255,0.22)',
-    boxShadow: '0 4px 24px 0 rgba(0,0,0,0.18)',
+    border: `.5px solid ${THEME.borderStrong}`,
+    boxShadow: THEME.shadowCard,
   },
   lineTitle: {
     fontSize: '17px',
@@ -721,7 +724,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '36px',
     border: 'none',
     borderRadius: '3.5px',
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: THEME.bgSubtle,
     color: COLORS.text,
     fontSize: '11px',
     fontWeight: 700,
@@ -731,12 +734,12 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '4px 2px',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+    boxShadow: THEME.shadowButton,
   },
   subOverlay: {
     position: 'fixed',
     inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: THEME.bgOverlay,
     zIndex: 2000,
     display: 'flex',
     alignItems: 'center',
@@ -781,7 +784,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     borderRadius: '6px',
     padding: '12px 14px',
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     fontSize: '15px',
     fontWeight: 600,
     cursor: 'pointer',
@@ -841,14 +844,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   undoButton: {
     backgroundColor: COLORS.delete,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     border: 'none',
     padding: '10px 20px',
     borderRadius: '6px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+    boxShadow: THEME.shadowButton,
     opacity: 1,
     transition: 'background 0.2s, color 0.2s, opacity 0.2s ease',
   },

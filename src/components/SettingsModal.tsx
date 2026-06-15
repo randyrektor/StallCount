@@ -1,40 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { Player, type GenderRatioMode, type LineupSize } from '../types';
-import { getGenderPattern } from '../utils/rotationHelpers';
+import { Player, type GenderRatioMode, type LineupSize, type StartsOn, type Theme } from '../types';
+import { getGenderPattern, modeHasStartingPoint } from '../utils/rotationHelpers';
+import { THEME } from '../constants';
 
-/** Readable line split for descriptions. */
-function splitPlain(men: number, women: number): string {
-  if (women === 0) return `${men} open`;
-  if (men === 0) return `${women} women-matching`;
-  return `${men} open, ${women} women-matching`;
+/** Compact ratio like "4O : 3W". */
+function formatRatio(men: number, women: number): string {
+  return `${men}O : ${women}W`;
 }
 
-/** One short line under each option; updates when players per point changes. */
-function shortGenderRatioDescription(mode: GenderRatioMode, size: LineupSize): string {
-  if (mode === 'MEN') return `${size} open only`;
-  if (mode === 'WOMEN') return `${size} women-matching only`;
+/** One short line under each option; updates when players per point / starts-on changes. */
+function shortGenderRatioDescription(
+  mode: GenderRatioMode,
+  size: LineupSize,
+  startsOn: StartsOn
+): string {
+  if (mode === 'MEN') return `${size}O`;
+  if (mode === 'WOMEN') return `${size}W`;
   if (mode === '4-3') {
     const { men, women } = getGenderPattern(0, '4-3', size);
-    return `${splitPlain(men, women)} each point`;
+    return formatRatio(men, women);
   }
   if (mode === '3-4') {
     const { men, women } = getGenderPattern(0, '3-4', size);
-    return `${splitPlain(men, women)} each point`;
+    return formatRatio(men, women);
   }
   if (mode === 'ABBA') {
-    const a = getGenderPattern(0, 'ABBA', size);
-    const b = getGenderPattern(1, 'ABBA', size);
-    return `${splitPlain(a.men, a.women)} ↔ ${splitPlain(b.men, b.women)} (alternates)`;
+    const a = getGenderPattern(0, 'ABBA', size, startsOn);
+    const b = getGenderPattern(1, 'ABBA', size, startsOn);
+    return `${formatRatio(a.men, a.women)} ↔ ${formatRatio(b.men, b.women)}`;
   }
-  if (mode === 'AAB-MW') {
-    const aa = getGenderPattern(0, 'AAB-MW', size);
-    const b = getGenderPattern(2, 'AAB-MW', size);
-    return `AA: ${splitPlain(aa.men, aa.women)} · B: ${splitPlain(b.men, b.women)} (3-point loop)`;
-  }
-  if (mode === 'AAB-WM') {
-    const aa = getGenderPattern(0, 'AAB-WM', size);
-    const b = getGenderPattern(2, 'AAB-WM', size);
-    return `AA: ${splitPlain(aa.men, aa.women)} · B: ${splitPlain(b.men, b.women)} (3-point loop)`;
+  if (mode === 'AAB') {
+    const aa = getGenderPattern(0, 'AAB', size, startsOn);
+    const b = getGenderPattern(2, 'AAB', size, startsOn);
+    return `${formatRatio(aa.men, aa.women)} ×2, ${formatRatio(b.men, b.women)}`;
   }
   return '';
 }
@@ -42,20 +40,19 @@ function shortGenderRatioDescription(mode: GenderRatioMode, size: LineupSize): s
 const LINEUP_SIZE_OPTIONS: LineupSize[] = [4, 5, 6, 7];
 
 const COLORS = {
-  background: '#1a1a1a',
-  card: '#2d2d2d',
-  text: '#ffffff',
-  textSecondary: '#b3b3b3',
-  open: '#4a90e2',
-  women: '#e83e8c',
-  border: '#404040',
-  inputBg: '#1a1a1a',
-  inputBorder: '#404040',
-  button: '#4a90e2',
-  buttonHover: '#357abd',
-  danger: '#e74c3c',
-  success: '#2ecc71',
-  cardHover: '#383838',
+  background: THEME.bgPage,
+  card: THEME.bgElevated,
+  text: THEME.text,
+  textSecondary: THEME.textSecondary,
+  open: THEME.open,
+  women: THEME.women,
+  border: THEME.border,
+  inputBg: THEME.bgInput,
+  inputBorder: THEME.border,
+  button: THEME.open,
+  buttonHover: THEME.openStrong,
+  danger: THEME.danger,
+  success: THEME.success,
 };
 
 interface SettingsModalProps {
@@ -75,6 +72,10 @@ interface SettingsModalProps {
   onGenderRatioModeChange: (mode: GenderRatioMode) => void;
   lineupSize: LineupSize;
   onLineupSizeChange: (size: LineupSize) => void;
+  startsOn: StartsOn;
+  onStartsOnChange: (value: StartsOn) => void;
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
   onReset: () => void;
   onChangeTeam?: () => void;
   // Export functionality props
@@ -106,6 +107,10 @@ export function SettingsModal({
   onGenderRatioModeChange,
   lineupSize,
   onLineupSizeChange,
+  startsOn,
+  onStartsOnChange,
+  theme,
+  onThemeChange,
   onReset,
   onChangeTeam,
   team1Score,
@@ -125,6 +130,8 @@ export function SettingsModal({
   const [localEndTime, setLocalEndTime] = useState(endTime);
   const [localGenderRatioMode, setLocalGenderRatioMode] = useState<GenderRatioMode>(genderRatioMode);
   const [localLineupSize, setLocalLineupSize] = useState<LineupSize>(lineupSize);
+  const [localStartsOn, setLocalStartsOn] = useState<StartsOn>(startsOn);
+  const [localTheme, setLocalTheme] = useState<Theme>(theme);
 
   useEffect(() => {
     if (!visible) return;
@@ -135,7 +142,18 @@ export function SettingsModal({
     setLocalEndTime(endTime);
     setLocalGenderRatioMode(genderRatioMode);
     setLocalLineupSize(lineupSize);
-  }, [visible, team1Name, team2Name, gameStartTime, halftimeTime, endTime, genderRatioMode, lineupSize]);
+    setLocalStartsOn(startsOn);
+    setLocalTheme(theme);
+  }, [visible, team1Name, team2Name, gameStartTime, halftimeTime, endTime, genderRatioMode, lineupSize, startsOn, theme]);
+
+  const showStartsOn = modeHasStartingPoint(localGenderRatioMode);
+
+  // Apply the chosen theme live as the user toggles, so they can see contrast
+  // before saving. Reverts on cancel via handleCancel.
+  useEffect(() => {
+    if (!visible) return;
+    document.documentElement.dataset.theme = localTheme;
+  }, [localTheme, visible]);
 
   const handleSave = () => {
     onTeam1NameChange(localTeam1Name);
@@ -145,6 +163,8 @@ export function SettingsModal({
     onEndTimeChange(localEndTime);
     onGenderRatioModeChange(localGenderRatioMode);
     onLineupSizeChange(localLineupSize);
+    onStartsOnChange(localStartsOn);
+    onThemeChange(localTheme);
     onClose();
   };
 
@@ -156,6 +176,10 @@ export function SettingsModal({
     setLocalEndTime(endTime);
     setLocalGenderRatioMode(genderRatioMode);
     setLocalLineupSize(lineupSize);
+    setLocalStartsOn(startsOn);
+    setLocalTheme(theme);
+    // Revert any live theme preview from the modal.
+    document.documentElement.dataset.theme = theme;
     onClose();
   };
 
@@ -227,8 +251,7 @@ Report generated by Ultimate Score App
 
   const GENDER_MODE_OPTIONS: { label: string; value: GenderRatioMode }[] = [
     { label: 'ABBA', value: 'ABBA' },
-    { label: 'AAB (Open)', value: 'AAB-MW' },
-    { label: 'AAB (Women)', value: 'AAB-WM' },
+    { label: 'AAB', value: 'AAB' },
     { label: 'Open-Favored', value: '4-3' },
     { label: 'Women-Favored', value: '3-4' },
     { label: 'Open Only', value: 'MEN' },
@@ -244,16 +267,45 @@ Report generated by Ultimate Score App
             <h2 style={styles.title}>Game Settings</h2>
             <p style={styles.subtitle}>Configure your game options</p>
           </div>
-          <button style={styles.closeButton} onClick={onClose} aria-label="Close settings">
-            ✕
-          </button>
+          <div style={styles.headerActions}>
+            <div
+              role="group"
+              aria-label="Theme"
+              style={styles.themeSegmented}
+            >
+              <button
+                type="button"
+                aria-pressed={localTheme === 'dark'}
+                style={{
+                  ...styles.themeSegment,
+                  ...(localTheme === 'dark' ? styles.themeSegmentActive : {}),
+                }}
+                onClick={() => setLocalTheme('dark')}
+              >
+                Dark
+              </button>
+              <button
+                type="button"
+                aria-pressed={localTheme === 'light'}
+                style={{
+                  ...styles.themeSegment,
+                  ...(localTheme === 'light' ? styles.themeSegmentActive : {}),
+                }}
+                onClick={() => setLocalTheme('light')}
+              >
+                Light
+              </button>
+            </div>
+            <button style={styles.closeButton} onClick={onClose} aria-label="Close settings">
+              ✕
+            </button>
+          </div>
         </div>
 
         <div style={styles.content}>
           {/* Team Names Section */}
           <div style={styles.card}>
             <div style={styles.cardHeader}>
-              <span style={styles.cardIcon}>⚡</span>
               <h3 style={styles.cardTitle}>Teams</h3>
             </div>
             <div style={styles.cardContent}>
@@ -282,7 +334,6 @@ Report generated by Ultimate Score App
 
           <div style={styles.card}>
             <div style={styles.cardHeader}>
-              <span style={styles.cardIcon}>🎯</span>
               <h3 style={styles.cardTitle}>Players per point</h3>
             </div>
             <div style={styles.cardContent}>
@@ -307,7 +358,6 @@ Report generated by Ultimate Score App
           {/* Gender Ratio Section */}
           <div style={styles.card}>
             <div style={styles.cardHeader}>
-              <span style={styles.cardIcon}>👥</span>
               <h3 style={styles.cardTitle}>Gender Ratio</h3>
             </div>
             <div style={styles.cardContent}>
@@ -324,7 +374,7 @@ Report generated by Ultimate Score App
                   >
                     <span style={styles.ratioLabel}>{mode.label}</span>
                     <span style={styles.ratioDescription}>
-                      {shortGenderRatioDescription(mode.value, localLineupSize)}
+                      {shortGenderRatioDescription(mode.value, localLineupSize, localStartsOn)}
                     </span>
                   </button>
                 ))}
@@ -332,10 +382,42 @@ Report generated by Ultimate Score App
             </div>
           </div>
 
+          {/* Starting Line — only shown for cyclic modes (ABBA, AAB) */}
+          {showStartsOn && (
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>Starting Line</h3>
+              </div>
+              <div style={styles.cardContent}>
+                <div style={styles.themeToggleRow}>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.themeButton,
+                      ...(localStartsOn === 'O' ? styles.themeButtonActive : {}),
+                    }}
+                    onClick={() => setLocalStartsOn('O')}
+                  >
+                    <span style={styles.themeButtonLabel}>Open</span>
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.themeButton,
+                      ...(localStartsOn === 'W' ? styles.themeButtonActive : {}),
+                    }}
+                    onClick={() => setLocalStartsOn('W')}
+                  >
+                    <span style={styles.themeButtonLabel}>Woman-Matching</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Game Times Section */}
           <div style={styles.card}>
             <div style={styles.cardHeader}>
-              <span style={styles.cardIcon}>⏰</span>
               <h3 style={styles.cardTitle}>Game Times</h3>
             </div>
             <div style={styles.cardContent}>
@@ -374,30 +456,26 @@ Report generated by Ultimate Score App
           {/* Actions Section */}
           <div style={styles.card}>
             <div style={styles.cardHeader}>
-              <span style={styles.cardIcon}>🔧</span>
               <h3 style={styles.cardTitle}>Actions</h3>
             </div>
             <div style={styles.cardContent}>
               <button style={styles.actionButton} onClick={handleExportScore}>
-                <span style={styles.actionIcon}>📄</span>
                 <div style={styles.actionContent}>
                   <div style={styles.actionTitle}>Export Game Report</div>
                   <div style={styles.actionDescription}>Download score and roster</div>
                 </div>
               </button>
-              
+
               {onChangeTeam && (
                 <button style={styles.actionButton} onClick={handleChangeTeam}>
-                  <span style={styles.actionIcon}>🔄</span>
                   <div style={styles.actionContent}>
                     <div style={styles.actionTitle}>Change Team</div>
                     <div style={styles.actionDescription}>Start with a different team</div>
                   </div>
                 </button>
               )}
-              
+
               <button style={styles.actionButtonDanger} onClick={handleReset}>
-                <span style={styles.actionIcon}>🗑️</span>
                 <div style={styles.actionContent}>
                   <div style={styles.actionTitle}>Reset Game</div>
                   <div style={styles.actionDescription}>Clear scores and history</div>
@@ -428,7 +506,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: THEME.bgOverlay,
     backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
@@ -443,17 +521,18 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     maxHeight: '90vh',
     overflow: 'hidden',
-    boxShadow: '0 24px 48px rgba(0, 0, 0, 0.4)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    boxShadow: THEME.shadowModal,
+    border: `1px solid ${THEME.borderSofter}`,
     display: 'flex',
     flexDirection: 'column',
   },
   header: {
     padding: '32px 32px 24px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+    borderBottom: `1px solid ${THEME.borderSoftest}`,
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: '16px',
   },
   title: {
     color: COLORS.text,
@@ -467,6 +546,37 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     margin: 0,
     fontWeight: '400',
+  },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    flexShrink: 0,
+  },
+  themeSegmented: {
+    display: 'inline-flex',
+    padding: '3px',
+    backgroundColor: THEME.bgSubtle2,
+    border: `1px solid ${THEME.borderFaint}`,
+    borderRadius: '999px',
+  },
+  themeSegment: {
+    appearance: 'none',
+    border: 'none',
+    background: 'transparent',
+    color: COLORS.textSecondary,
+    fontSize: '12px',
+    fontWeight: 600,
+    padding: '6px 12px',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    transition: 'background-color 0.2s ease, color 0.2s ease',
+    outline: 'none',
+  },
+  themeSegmentActive: {
+    backgroundColor: THEME.bgElevated,
+    color: COLORS.text,
+    boxShadow: THEME.shadowButton,
   },
   closeButton: {
     backgroundColor: 'transparent',
@@ -490,21 +600,18 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backgroundColor: THEME.bgSubtle3,
     borderRadius: '12px',
     marginBottom: '20px',
-    border: '1px solid rgba(255, 255, 255, 0.06)',
+    border: `1px solid ${THEME.borderFaint}`,
     overflow: 'hidden',
   },
   cardHeader: {
     padding: '16px 20px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+    borderBottom: `1px solid ${THEME.borderFaint}`,
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-  },
-  cardIcon: {
-    fontSize: '20px',
   },
   cardTitle: {
     color: COLORS.text,
@@ -546,8 +653,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   ratioButton: {
     padding: '14px 16px',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1.5px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: THEME.bgSubtle3,
+    border: `1.5px solid ${THEME.borderSofter}`,
     borderRadius: '10px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
@@ -555,7 +662,7 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
   },
   ratioButtonActive: {
-    backgroundColor: 'rgba(74, 144, 226, 0.15)',
+    backgroundColor: THEME.openTint,
     border: `1.5px solid ${COLORS.open}`,
   },
   ratioLabel: {
@@ -579,8 +686,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   lineupSizeButton: {
     padding: '14px 12px',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1.5px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: THEME.bgSubtle3,
+    border: `1.5px solid ${THEME.borderSofter}`,
     borderRadius: '10px',
     cursor: 'pointer',
     color: COLORS.text,
@@ -591,9 +698,36 @@ const styles: Record<string, React.CSSProperties> = {
     WebkitTapHighlightColor: 'transparent',
   },
   lineupSizeButtonActive: {
-    backgroundColor: 'rgba(74, 144, 226, 0.2)',
+    backgroundColor: THEME.openTint,
     border: `1.5px solid ${COLORS.open}`,
     outline: 'none',
+  },
+  themeToggleRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '10px',
+  },
+  themeButton: {
+    padding: '14px 12px',
+    backgroundColor: THEME.bgSubtle3,
+    border: `1.5px solid ${THEME.borderSofter}`,
+    borderRadius: '10px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    alignItems: 'center',
+  },
+  themeButtonActive: {
+    backgroundColor: THEME.openTint,
+    border: `1.5px solid ${COLORS.open}`,
+  },
+  themeButtonLabel: {
+    color: COLORS.text,
+    fontSize: '15px',
+    fontWeight: 700,
   },
   timeGrid: {
     display: 'grid',
@@ -626,8 +760,8 @@ const styles: Record<string, React.CSSProperties> = {
   actionButton: {
     width: '100%',
     padding: '16px',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1.5px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: THEME.bgSubtle3,
+    border: `1.5px solid ${THEME.borderSofter}`,
     borderRadius: '10px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
@@ -639,8 +773,8 @@ const styles: Record<string, React.CSSProperties> = {
   actionButtonDanger: {
     width: '100%',
     padding: '16px',
-    backgroundColor: 'rgba(231, 76, 60, 0.1)',
-    border: '1.5px solid rgba(231, 76, 60, 0.3)',
+    backgroundColor: THEME.dangerTint,
+    border: `1.5px solid ${THEME.dangerBorder}`,
     borderRadius: '10px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
@@ -648,10 +782,6 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '16px',
     marginBottom: '10px',
-  },
-  actionIcon: {
-    fontSize: '24px',
-    flexShrink: 0,
   },
   actionContent: {
     display: 'flex',
@@ -670,14 +800,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   footer: {
     padding: '20px 32px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+    borderTop: `1px solid ${THEME.borderSoftest}`,
     display: 'flex',
     gap: '12px',
     justifyContent: 'flex-end',
   },
   cancelButton: {
     padding: '14px 28px',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: THEME.bgSubtle2,
     color: COLORS.text,
     border: 'none',
     borderRadius: '10px',
@@ -689,13 +819,13 @@ const styles: Record<string, React.CSSProperties> = {
   saveButton: {
     padding: '14px 32px',
     backgroundColor: COLORS.button,
-    color: COLORS.text,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '10px',
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    boxShadow: '0 4px 12px rgba(74, 144, 226, 0.3)',
+    boxShadow: THEME.shadowCta,
   },
 };

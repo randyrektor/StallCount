@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { COLORS } from '../constants';
+import { COLORS, THEME } from '../constants';
 import { GradientBlobs } from './ScoreBoard';
 
 interface HomeScreenProps {
@@ -79,8 +79,8 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
                     style={{
                       ...styles.teamButton,
                       ...(hoveredButton === team ? {
-                        backgroundColor: 'rgba(74, 144, 226, 0.25)',
-                        borderColor: 'rgba(74, 144, 226, 0.5)',
+                        backgroundColor: THEME.openTint,
+                        borderColor: THEME.openMuted,
                         transform: 'translateX(4px)',
                       } : {}),
                     }}
@@ -99,7 +99,7 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
             style={{
               ...styles.startButton,
               ...(hoveredButton === 'start' ? {
-                backgroundColor: '#357abd',
+                backgroundColor: THEME.openStrong,
                 transform: 'translateY(-2px)',
                 boxShadow: '0 6px 16px rgba(74, 144, 226, 0.4)',
               } : {}),
@@ -134,24 +134,24 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '20px',
   },
   card: {
-    backgroundColor: 'rgba(45, 45, 45, 0.8)',
+    backgroundColor: THEME.bgPanelStrong,
     borderRadius: '16px',
     padding: '40px',
-    border: '1px solid rgba(255,255,255,0.22)',
-    boxShadow: '0 8px 32px 0 rgba(0,0,0,0.37)',
+    border: `1px solid ${THEME.borderStrong}`,
+    boxShadow: THEME.shadowModal,
     backdropFilter: 'blur(10px)',
   },
   title: {
     fontSize: '36px',
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: THEME.text,
     textAlign: 'center',
     margin: '0 0 8px 0',
   },
   subtitle: {
     fontSize: '20px',
     fontWeight: '500',
-    color: '#b3b3b3',
+    color: THEME.textSecondary,
     textAlign: 'center',
     margin: '0 0 32px 0',
   },
@@ -162,17 +162,17 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
     fontSize: '14px',
     fontWeight: '600',
-    color: '#ffffff',
+    color: THEME.text,
     marginBottom: '8px',
   },
   input: {
     width: '100%',
     padding: '14px 16px',
     fontSize: '16px',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    border: '2px solid rgba(255, 255, 255, 0.15)',
+    backgroundColor: THEME.bgInputSoft,
+    border: `2px solid ${THEME.borderSoft}`,
     borderRadius: '8px',
-    color: '#ffffff',
+    color: THEME.text,
     outline: 'none',
     transition: 'all 0.2s ease',
     boxSizing: 'border-box',
@@ -188,10 +188,10 @@ const styles: Record<string, React.CSSProperties> = {
   teamButton: {
     padding: '12px 16px',
     fontSize: '15px',
-    backgroundColor: 'rgba(74, 144, 226, 0.15)',
-    border: '1px solid rgba(74, 144, 226, 0.3)',
+    backgroundColor: THEME.openTint,
+    border: `1px solid ${THEME.openMuted}`,
     borderRadius: '6px',
-    color: '#ffffff',
+    color: THEME.text,
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     textAlign: 'left',
@@ -202,12 +202,12 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     fontSize: '18px',
     fontWeight: 'bold',
-    backgroundColor: '#4a90e2',
-    color: '#ffffff',
+    backgroundColor: THEME.open,
+    color: THEME.textOnAccent,
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    boxShadow: '0 4px 12px rgba(74, 144, 226, 0.3)',
+    boxShadow: THEME.shadowCta,
   },
 };
