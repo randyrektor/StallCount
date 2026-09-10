@@ -15,11 +15,12 @@ import {
   insertPlayerAtGenderEndOfRoster,
 } from './src/utils/rotationHelpers';
 import {
-  expandRawIndexAfterQueueAppend,
   applyQueueRemovalsForRosterChange,
   applyDragReorderToMasterQueues,
   partitionPendingForLineChange,
   applyPendingActivationsToQueues,
+  restoreActivatedPendingAfterUndo,
+  expandRawIndexAfterQueueAppend,
 } from './src/utils/rosterManagerLogic';
 import { COLORS } from './src/constants';
 import { loadRosterForTeam, saveRosterForTeam } from './src/utils/rosterStorage';
@@ -36,12 +37,16 @@ interface ScoreEvent {
   pointNumber: number;
   openIndex: number;
   womenIndex: number;
+  /** Pending at the moment of the score, before they may rotate in. */
+  pendingPlayerIds: string[];
 }
 
 export default function App() {
   const scrollViewRef = useRef<HTMLDivElement>(null);
+  const prevLineIndexRef = useRef(0);
   const [showHomeScreen, setShowHomeScreen] = useState<boolean | null>(null); // null = loading
   const [showRosterSetup, setShowRosterSetup] = useState(false);
+  const [rosterSetupPlayers, setRosterSetupPlayers] = useState<Player[]>([]);
   const [team1Name, setTeam1Name] = useState('');
   const [team2Name, setTeam2Name] = useState('Away');
   const [team1Score, setTeam1Score] = useState(0);
@@ -50,6 +55,7 @@ export default function App() {
   const [masterOpenQueue, setMasterOpenQueue] = useState<Player[]>([]);
   const [masterWomenQueue, setMasterWomenQueue] = useState<Player[]>([]);
   const [pendingPlayers, setPendingPlayers] = useState<Player[]>([]);
+  const [gameStarted, setGameStarted] = useState(false);
   const [lineIndex, setLineIndex] = useState(0);
   const [pointNumber, setPointNumber] = useState(1);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -118,6 +124,8 @@ export default function App() {
     setOpenIndex(0);
     setWomenIndex(0);
     setPendingPlayers([]);
+    setGameStarted(false);
+    prevLineIndexRef.current = 0;
   }, []);
 
   const applyNewGameRoster = useCallback((newRoster: Player[]) => {
@@ -135,35 +143,34 @@ export default function App() {
     resetScoreboardForNewSession();
     setTeam1Name(trimmed);
     setShowHomeScreen(false);
-
-    const saved = loadRosterForTeam(trimmed);
-    if (saved && saved.length > 0) {
-      applyNewGameRoster(saved);
-      setShowRosterSetup(false);
-    } else {
-      setRoster([]);
-      setMasterOpenQueue([]);
-      setMasterWomenQueue([]);
-      setShowRosterSetup(true);
-    }
+    setRoster([]);
+    setMasterOpenQueue([]);
+    setMasterWomenQueue([]);
+    setRosterSetupPlayers(loadRosterForTeam(trimmed) ?? []);
+    setShowRosterSetup(true);
   };
 
   const handleRosterComplete = (newRoster: Player[]) => {
     applyNewGameRoster(newRoster);
+    setGameStarted(false);
     setShowRosterSetup(false);
+  };
+
+  const handleKickoff = () => {
+    setGameStarted(true);
   };
 
   const handleBackToHomeScreen = () => {
     setShowRosterSetup(false);
+    setRosterSetupPlayers([]);
     setShowHomeScreen(true);
   };
 
   const handleChangeTeam = () => {
     setShowHomeScreen(true);
     setShowRosterSetup(false);
+    setRosterSetupPlayers([]);
   };
-
-  // Queues are initialized when roster is completed in handleRosterComplete
 
   // Calculate total players used so far for proper rotation
   const getPattern = useCallback(
@@ -275,6 +282,7 @@ export default function App() {
   const currentWomanQueue = getWrapped(masterWomenQueue, normalizedWomenIndex, currentPattern.women);
 
   const handleTeam1ScoreChange = (newScore: number) => {
+    if (!gameStarted) return;
     if (newScore <= team1Score) return;
     const currentPattern = getPattern(lineIndex);
     setScoreHistory((prev) => [
@@ -285,6 +293,7 @@ export default function App() {
         pointNumber,
         openIndex,
         womenIndex,
+        pendingPlayerIds: pendingPlayers.map((p) => p.uuid),
       },
     ]);
     setTeam1Score(newScore);
@@ -295,6 +304,7 @@ export default function App() {
   };
 
   const handleTeam2ScoreChange = (newScore: number) => {
+    if (!gameStarted) return;
     if (newScore <= team2Score) return;
     const currentPattern = getPattern(lineIndex);
     setScoreHistory((prev) => [
@@ -305,6 +315,7 @@ export default function App() {
         pointNumber,
         openIndex,
         womenIndex,
+        pendingPlayerIds: pendingPlayers.map((p) => p.uuid),
       },
     ]);
     setTeam2Score(newScore);
@@ -338,12 +349,16 @@ export default function App() {
       const applied = applyPendingActivationsToQueues(
         masterOpenQueue,
         masterWomenQueue,
-        [player]
+        [player],
+        openIndex,
+        womenIndex
       );
       setMasterOpenQueue(applied.masterOpenQueue);
       setMasterWomenQueue(applied.masterWomenQueue);
+      setOpenIndex(applied.openIndex);
+      setWomenIndex(applied.womenIndex);
     },
-    [pendingPlayers, masterOpenQueue, masterWomenQueue]
+    [pendingPlayers, masterOpenQueue, masterWomenQueue, openIndex, womenIndex]
   );
 
   const handleReset = () => {
@@ -358,24 +373,30 @@ export default function App() {
 
   const handleUndo = () => {
     if (scoreHistory.length === 0) return;
-    
-    // Get the last score event
+
     const lastEvent = scoreHistory[scoreHistory.length - 1];
-    
-    // Revert the score
+
     if (lastEvent.team === 1) {
       setTeam1Score(prev => prev - 1);
     } else {
       setTeam2Score(prev => prev - 1);
     }
-    
-    // Restore the previous line state
+
     setLineIndex(lastEvent.lineIndex);
     setPointNumber(lastEvent.pointNumber);
     setOpenIndex(lastEvent.openIndex);
     setWomenIndex(lastEvent.womenIndex);
-    
-    // Remove the last event from history
+
+    const restored = restoreActivatedPendingAfterUndo({
+      pendingIdsAtScore: lastEvent.pendingPlayerIds ?? [],
+      masterOpenQueue,
+      masterWomenQueue,
+      currentPending: pendingPlayers,
+    });
+    setMasterOpenQueue(restored.masterOpenQueue);
+    setMasterWomenQueue(restored.masterWomenQueue);
+    setPendingPlayers(restored.pendingPlayers);
+
     setScoreHistory(prev => prev.slice(0, -1));
   };
 
@@ -402,7 +423,7 @@ export default function App() {
       nextOpenIndex = r.openIndex;
       nextWomenIndex = r.womenIndex;
     } else if (addedPlayers.length > 0) {
-      // Late arrival already updated queues in handleLateArrival
+      // Pre-kickoff adds update queues in handleLateArrival; post-kickoff they stay pending.
     } else {
       const stillPendingIds = new Set(pendingPlayers.map(p => p.uuid));
       const activePlayers = newRoster.filter(p => !stillPendingIds.has(p.uuid));
@@ -453,45 +474,26 @@ export default function App() {
   };
 
   const handleLateArrival = (player: Player) => {
-    const tempRoster = assignNumbers(insertPlayerAtGenderEndOfRoster(roster, player));
-    const currentPattern = getPattern(lineIndex);
-    const isFirstPoint = pointNumber === 1;
-    const currentOpenCount = masterOpenQueue.length;
-    const currentWomenCount = masterWomenQueue.length;
-    const neededOpenCount = currentPattern.men;
-    const neededWomenCount = currentPattern.women;
+    const nextRoster = assignNumbers(insertPlayerAtGenderEndOfRoster(roster, player));
+    setRoster(nextRoster);
 
-    const simulatedOpenQueue =
-      player.gender === 'O' ? [...masterOpenQueue, player] : masterOpenQueue;
-    const simulatedWomenQueue =
-      player.gender === 'W' ? [...masterWomenQueue, player] : masterWomenQueue;
-
-    const fillsEmptySlotOnPointOne =
-      isFirstPoint &&
-      ((player.gender === 'O' && currentOpenCount < neededOpenCount) ||
-        (player.gender === 'W' && currentWomenCount < neededWomenCount));
-
-    setRoster(tempRoster);
-
-    // Point 1 only: if we're short this gender to cover the line, add straight into rotation.
-    // Otherwise mid-game adds stay off the rotation until pending logic puts them in (never same point).
-    if (fillsEmptySlotOnPointOne) {
+    if (!gameStarted) {
       if (player.gender === 'O') {
         const oldLen = masterOpenQueue.length;
-        setMasterOpenQueue(simulatedOpenQueue);
-        setMasterWomenQueue(simulatedWomenQueue);
+        const nextOpen = [...masterOpenQueue, player];
+        setMasterOpenQueue(nextOpen);
         if (oldLen > 0) {
           setOpenIndex((idx) =>
-            expandRawIndexAfterQueueAppend(idx, oldLen, simulatedOpenQueue.length)
+            expandRawIndexAfterQueueAppend(idx, oldLen, nextOpen.length)
           );
         }
       } else {
         const oldLen = masterWomenQueue.length;
-        setMasterOpenQueue(simulatedOpenQueue);
-        setMasterWomenQueue(simulatedWomenQueue);
+        const nextWomen = [...masterWomenQueue, player];
+        setMasterWomenQueue(nextWomen);
         if (oldLen > 0) {
           setWomenIndex((idx) =>
-            expandRawIndexAfterQueueAppend(idx, oldLen, simulatedWomenQueue.length)
+            expandRawIndexAfterQueueAppend(idx, oldLen, nextWomen.length)
           );
         }
       }
@@ -502,7 +504,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (pendingPlayers.length === 0) return;
+    const advanced = lineIndex > prevLineIndexRef.current;
+    prevLineIndexRef.current = lineIndex;
+    if (!advanced || pendingPlayers.length === 0) return;
 
     const { activate, stillPending } = partitionPendingForLineChange({
       pendingPlayers,
@@ -511,7 +515,6 @@ export default function App() {
       openIndex,
       womenIndex,
       lineIndex,
-      pointNumber,
       genderRatioMode,
       lineupSize,
       startsOn,
@@ -521,10 +524,14 @@ export default function App() {
       const applied = applyPendingActivationsToQueues(
         masterOpenQueue,
         masterWomenQueue,
-        activate
+        activate,
+        openIndex,
+        womenIndex
       );
       setMasterOpenQueue(applied.masterOpenQueue);
       setMasterWomenQueue(applied.masterWomenQueue);
+      setOpenIndex(applied.openIndex);
+      setWomenIndex(applied.womenIndex);
       setPendingPlayers(stillPending);
     }
   }, [lineIndex, openIndex, womenIndex, pointNumber, genderRatioMode, lineupSize, startsOn]);
@@ -584,7 +591,9 @@ export default function App() {
   if (showRosterSetup) {
     return (
       <RosterSetup
+        key={team1Name}
         teamName={team1Name}
+        initialRoster={rosterSetupPlayers}
         onComplete={handleRosterComplete}
         onBack={handleBackToHomeScreen}
       />
@@ -619,6 +628,8 @@ export default function App() {
           nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
           nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
           scoreHistory={scoreHistory}
+          gameStarted={gameStarted}
+          onKickoff={handleKickoff}
           onSubstitute={handleSubstitute}
         />
       </div>
@@ -628,6 +639,7 @@ export default function App() {
         scrollViewRef={scrollViewRef}
         onLateArrival={handleLateArrival}
         pendingPlayers={pendingPlayers}
+        gameStarted={gameStarted}
         masterOpenQueue={masterOpenQueue}
         masterWomenQueue={masterWomenQueue}
         onForcePendingToRotation={handleForcePendingToRotation}

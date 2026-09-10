@@ -5,6 +5,7 @@ import { GradientBlobs } from './ScoreBoard';
 
 interface RosterSetupProps {
   teamName: string;
+  initialRoster?: Player[];
   onComplete: (roster: Player[]) => void;
   onBack: () => void;
 }
@@ -20,8 +21,8 @@ function generateUUID() {
   });
 }
 
-export function RosterSetup({ teamName, onComplete, onBack }: RosterSetupProps) {
-  const [roster, setRoster] = useState<Player[]>([]);
+export function RosterSetup({ teamName, initialRoster = [], onComplete, onBack }: RosterSetupProps) {
+  const [roster, setRoster] = useState<Player[]>(() => initialRoster.map((p) => ({ ...p })));
   const [playerName, setPlayerName] = useState('');
   const [playerGender, setPlayerGender] = useState<'O' | 'W'>('O');
 
@@ -49,7 +50,7 @@ export function RosterSetup({ teamName, onComplete, onBack }: RosterSetupProps) 
 
   const handleStartGame = () => {
     if (roster.length === 0) {
-      alert('Please add at least one player to start the game');
+      alert('Please add at least one player');
       return;
     }
 
@@ -89,7 +90,7 @@ export function RosterSetup({ teamName, onComplete, onBack }: RosterSetupProps) 
             </button>
             <h1 style={styles.title}>{teamName}</h1>
           </div>
-          <h2 style={styles.subtitle}>Add Your Players</h2>
+          <h2 style={styles.subtitle}>Who is here? Remove absences, then continue.</h2>
 
           {/* Add Player Form */}
           <div style={styles.addPlayerSection}>
@@ -179,7 +180,7 @@ export function RosterSetup({ teamName, onComplete, onBack }: RosterSetupProps) 
             ) : (
               <div style={styles.emptyState}>
                 <p style={styles.emptyText}>No players added yet</p>
-                <p style={styles.emptyHint}>Add players using the form above</p>
+                <p style={styles.emptyHint}>Add everyone who is here. You can still add people on the scoreboard until Start Game.</p>
               </div>
             )}
           </div>
@@ -194,7 +195,7 @@ export function RosterSetup({ teamName, onComplete, onBack }: RosterSetupProps) 
             onClick={handleStartGame}
             disabled={roster.length === 0}
           >
-            Start Game ({roster.length} player{roster.length !== 1 ? 's' : ''})
+            Continue ({roster.length} player{roster.length !== 1 ? 's' : ''})
           </button>
         </div>
       </div>

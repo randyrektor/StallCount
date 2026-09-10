@@ -94,6 +94,8 @@ interface ScoreBoardProps {
   nextOpenQueue: Player[];
   nextWomanQueue: Player[];
   scoreHistory: any[];
+  gameStarted?: boolean;
+  onKickoff?: () => void;
   onSubstitute?: (outPlayer: Player, inPlayer: Player) => void;
 }
 
@@ -121,6 +123,8 @@ export function ScoreBoard({
   nextOpenQueue,
   nextWomanQueue,
   scoreHistory,
+  gameStarted = true,
+  onKickoff,
   onSubstitute,
 }: ScoreBoardProps) {
   const abbaPattern = ['A', 'B', 'B', 'A'] as const;
@@ -185,7 +189,7 @@ export function ScoreBoard({
   };
 
   const handleScoreClick = (team: 'team1' | 'team2') => {
-    if (isAnimating) return;
+    if (!gameStarted || isAnimating) return;
     setIsAnimating(true);
     if (team === 'team1') {
       setFlashTeam1(true);
@@ -349,9 +353,14 @@ export function ScoreBoard({
         {/* Only the team scores row is forced side by side */}
         <div style={teamScoresRowStyle}>
           <button
-            style={teamScoreButtonStyle}
+            style={{
+              ...teamScoreButtonStyle,
+              opacity: gameStarted ? 1 : 0.55,
+              cursor: gameStarted ? 'pointer' : 'not-allowed',
+            }}
             data-team="team1"
             onClick={() => handleScoreClick('team1')}
+            aria-disabled={!gameStarted}
           >
             {/* Flash overlay for team 1 */}
             {flashTeam1 && <div style={flashOverlayStyle}></div>}
@@ -369,9 +378,14 @@ export function ScoreBoard({
             <div style={scoreDiffStyle}>{scoreDiff !== 0 ? scoreDiff : '0'}</div>
           )}
           <button
-            style={teamScoreButtonStyle}
+            style={{
+              ...teamScoreButtonStyle,
+              opacity: gameStarted ? 1 : 0.55,
+              cursor: gameStarted ? 'pointer' : 'not-allowed',
+            }}
             data-team="team2"
             onClick={() => handleScoreClick('team2')}
+            aria-disabled={!gameStarted}
           >
             {/* Flash overlay for team 2 */}
             {flashTeam2 && <div style={flashOverlayStyle}></div>}
@@ -386,6 +400,17 @@ export function ScoreBoard({
           </button>
         </div>
       </div>
+
+      {!gameStarted && (
+        <div style={styles.kickoffBar}>
+          <p style={styles.kickoffCopy}>
+            Add anyone who just showed up. They join this line. Tap Start Game when the disc is pulled.
+          </p>
+          <button type="button" style={styles.kickoffButton} onClick={onKickoff}>
+            Start Game
+          </button>
+        </div>
+      )}
 
       <div style={styles.lineInfo}>
         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%', position: 'relative' }}>
@@ -854,5 +879,37 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: THEME.shadowButton,
     opacity: 1,
     transition: 'background 0.2s, color 0.2s, opacity 0.2s ease',
+  },
+  kickoffBar: {
+    display: 'flex',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    margin: '0 0 10px',
+    padding: '12px 14px',
+    backgroundColor: THEME.openTint,
+    border: `1px solid ${THEME.openMuted}`,
+    borderRadius: '10px',
+  },
+  kickoffCopy: {
+    margin: 0,
+    flex: '1 1 200px',
+    color: COLORS.text,
+    fontSize: '14px',
+    lineHeight: 1.4,
+  },
+  kickoffButton: {
+    backgroundColor: THEME.open,
+    color: THEME.textOnAccent,
+    border: 'none',
+    padding: '12px 22px',
+    borderRadius: '8px',
+    fontSize: '16px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: THEME.shadowCta,
+    flex: '0 0 auto',
   },
 }; 

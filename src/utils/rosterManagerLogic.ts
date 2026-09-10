@@ -148,7 +148,11 @@ export function applyDragReorderToMasterQueues(params: {
   };
 }
 
-/** Same rules as App pending activation effect after line / pattern change. */
+/**
+ * After kickoff, pending players join the rotation only when appending them would
+ * not change who is on the current line. Never fill a short line — that would
+ * change the people already out.
+ */
 export function partitionPendingForLineChange(params: {
   pendingPlayers: Player[];
   masterOpenQueue: Player[];
@@ -156,7 +160,6 @@ export function partitionPendingForLineChange(params: {
   openIndex: number;
   womenIndex: number;
   lineIndex: number;
-  pointNumber: number;
   genderRatioMode: GenderRatioMode;
   lineupSize: LineupSize;
   startsOn?: StartsOn;
@@ -167,10 +170,15 @@ export function partitionPendingForLineChange(params: {
     params.lineupSize,
     params.startsOn ?? 'O'
   );
-  const neededOpenCount = pattern.men;
-  const neededWomenCount = pattern.women;
-  const currentOpenCount = params.masterOpenQueue.length;
-  const currentWomenCount = params.masterWomenQueue.length;
+  // Use raw rotation indices (getWrapped already wraps). Normalizing against the
+  // old queue length would mis-detect the window after a simulated append.
+  const currentLine = getLine(
+    params.masterOpenQueue,
+    params.masterWomenQueue,
+    pattern,
+    params.openIndex,
+    params.womenIndex
+  );
 
   const activate: Player[] = [];
   const stillPending: Player[] = [];
@@ -180,26 +188,34 @@ export function partitionPendingForLineChange(params: {
       p.gender === 'O' ? [...params.masterOpenQueue, p] : params.masterOpenQueue;
     const simulatedWomen =
       p.gender === 'W' ? [...params.masterWomenQueue, p] : params.masterWomenQueue;
-    const lineWithPendingPlayer = getLine(
+    const simOpenIndex =
+      p.gender === 'O' && params.masterOpenQueue.length > 0
+        ? expandRawIndexAfterQueueAppend(
+            params.openIndex,
+            params.masterOpenQueue.length,
+            simulatedOpen.length
+          )
+        : params.openIndex;
+    const simWomenIndex =
+      p.gender === 'W' && params.masterWomenQueue.length > 0
+        ? expandRawIndexAfterQueueAppend(
+            params.womenIndex,
+            params.masterWomenQueue.length,
+            simulatedWomen.length
+          )
+        : params.womenIndex;
+    const lineWithPending = getLine(
       simulatedOpen,
       simulatedWomen,
       pattern,
-      params.openIndex,
-      params.womenIndex
+      simOpenIndex,
+      simWomenIndex
     );
+    const linePeopleChanged =
+      currentLine.length !== lineWithPending.length ||
+      currentLine.some((player, i) => player.uuid !== lineWithPending[i]?.uuid);
 
-    if (params.pointNumber === 1) {
-      if (p.gender === 'O' && currentOpenCount < neededOpenCount) {
-        activate.push(p);
-        continue;
-      }
-      if (p.gender === 'W' && currentWomenCount < neededWomenCount) {
-        activate.push(p);
-        continue;
-      }
-    }
-
-    if (lineWithPendingPlayer.some((lineP) => lineP.uuid === p.uuid)) {
+    if (linePeopleChanged) {
       stillPending.push(p);
     } else {
       activate.push(p);
@@ -210,19 +226,90 @@ export function partitionPendingForLineChange(params: {
 }
 
 /**
- * Append players leaving pending into master queues. Call only when partition logic has ensured
- * they are not on the current line (same openIndex / womenIndex → same people on the field).
+ * Undo restores score + rotation indices. Players who were pending at that
+ * score and later appended to a queue go back to pending.
+ */
+export function restoreActivatedPendingAfterUndo(params: {
+  pendingIdsAtScore: string[];
+  masterOpenQueue: Player[];
+  masterWomenQueue: Player[];
+  currentPending: Player[];
+}): {
+  masterOpenQueue: Player[];
+  masterWomenQueue: Player[];
+  pendingPlayers: Player[];
+} {
+  const wasPending = new Set(params.pendingIdsAtScore);
+  const rePend: Player[] = [];
+  const masterOpenQueue = params.masterOpenQueue.filter((p) => {
+    if (wasPending.has(p.uuid)) {
+      rePend.push(p);
+      return false;
+    }
+    return true;
+  });
+  const masterWomenQueue = params.masterWomenQueue.filter((p) => {
+    if (wasPending.has(p.uuid)) {
+      rePend.push(p);
+      return false;
+    }
+    return true;
+  });
+  const pendingIds = new Set(params.currentPending.map((p) => p.uuid));
+  const pendingPlayers = [
+    ...params.currentPending,
+    ...rePend.filter((p) => !pendingIds.has(p.uuid)),
+  ];
+  return { masterOpenQueue, masterWomenQueue, pendingPlayers };
+}
+
+/**
+ * Append players leaving pending into master queues and keep the same people
+ * in the current rotation window.
  */
 export function applyPendingActivationsToQueues(
   masterOpenQueue: Player[],
   masterWomenQueue: Player[],
-  activate: Player[]
-): { masterOpenQueue: Player[]; masterWomenQueue: Player[] } {
+  activate: Player[],
+  openIndex = 0,
+  womenIndex = 0
+): {
+  masterOpenQueue: Player[];
+  masterWomenQueue: Player[];
+  openIndex: number;
+  womenIndex: number;
+} {
   let open = [...masterOpenQueue];
   let women = [...masterWomenQueue];
+  let nextOpenIndex = openIndex;
+  let nextWomenIndex = womenIndex;
   for (const p of activate) {
-    if (p.gender === 'O') open = [...open, p];
-    else women = [...women, p];
+    if (p.gender === 'O') {
+      const oldLen = open.length;
+      open = [...open, p];
+      if (oldLen > 0) {
+        nextOpenIndex = expandRawIndexAfterQueueAppend(
+          nextOpenIndex,
+          oldLen,
+          open.length
+        );
+      }
+    } else {
+      const oldLen = women.length;
+      women = [...women, p];
+      if (oldLen > 0) {
+        nextWomenIndex = expandRawIndexAfterQueueAppend(
+          nextWomenIndex,
+          oldLen,
+          women.length
+        );
+      }
+    }
   }
-  return { masterOpenQueue: open, masterWomenQueue: women };
+  return {
+    masterOpenQueue: open,
+    masterWomenQueue: women,
+    openIndex: nextOpenIndex,
+    womenIndex: nextWomenIndex,
+  };
 }

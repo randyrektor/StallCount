@@ -29,6 +29,7 @@ interface PlayerManagerWebProps {
   masterOpenQueue?: Player[];
   masterWomenQueue?: Player[];
   onForcePendingToRotation?: (player: Player) => void;
+  gameStarted?: boolean;
 }
 
 function SortablePlayer({
@@ -182,6 +183,7 @@ export function PlayerManagerWeb({
   masterOpenQueue = [],
   masterWomenQueue = [],
   onForcePendingToRotation,
+  gameStarted = false,
 }: PlayerManagerWebProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [newPlayer, setNewPlayer] = useState<{ name: string; gender: 'O' | 'W' }>({ name: '', gender: 'O' });
@@ -437,7 +439,9 @@ export function PlayerManagerWeb({
           </div>
 
           <p style={styles.rosterHint}>
-            Drag to reorder and delete to remove. New players join as Pending until they rotate in. 'Current Line' does not change.
+            {gameStarted
+              ? "Drag to reorder and delete to remove. After Start Game, new players are pending until the next point so the current line does not change."
+              : "Drag to reorder and delete to remove. Add late arrivals here — they join the rotation until you tap Start Game."}
           </p>
 
           {/* Done row only takes space in edit mode so hint sits closer to the roster */}

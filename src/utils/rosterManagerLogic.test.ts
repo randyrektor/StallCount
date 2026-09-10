@@ -6,6 +6,7 @@ import {
   applyDragReorderToMasterQueues,
   partitionPendingForLineChange,
   applyPendingActivationsToQueues,
+  restoreActivatedPendingAfterUndo,
 } from './rosterManagerLogic';
 import {
   applySubstitutionToQueue,
@@ -196,7 +197,7 @@ describe('applyPendingActivationsToQueues', () => {
 });
 
 describe('partitionPendingForLineChange', () => {
-  it('point 1 with short bench: activate open pending to fill field', () => {
+  it('does not fill a short line after kickoff — current line must not change', () => {
     const opens = [o('A'), o('B')];
     const women = [w('M'), w('N'), w('P')];
     const pending = [o('Bench')];
@@ -207,12 +208,11 @@ describe('partitionPendingForLineChange', () => {
       openIndex: 0,
       womenIndex: 0,
       lineIndex: 0,
-      pointNumber: 1,
       genderRatioMode: 'ABBA',
       lineupSize: 7,
     });
-    expect(activate.map((p) => p.name)).toEqual(['Bench']);
-    expect(stillPending).toEqual([]);
+    expect(activate).toEqual([]);
+    expect(stillPending.map((p) => p.name)).toEqual(['Bench']);
   });
 
   it('when pending would appear on the current line if added, keep pending', () => {
@@ -226,7 +226,6 @@ describe('partitionPendingForLineChange', () => {
       openIndex: 1,
       womenIndex: 0,
       lineIndex: 0,
-      pointNumber: 5,
       genderRatioMode: 'ABBA',
       lineupSize: 7,
     });
@@ -350,6 +349,34 @@ describe('assignNumbersByGender', () => {
   });
 });
 
+describe('restoreActivatedPendingAfterUndo', () => {
+  it('pulls players who were pending at the score back out of the queues', () => {
+    const late = o('Late');
+    const opens = [o('A'), o('B'), o('C'), o('D'), late];
+    const women = [w('M'), w('N'), w('P')];
+    const r = restoreActivatedPendingAfterUndo({
+      pendingIdsAtScore: [late.uuid],
+      masterOpenQueue: opens,
+      masterWomenQueue: women,
+      currentPending: [],
+    });
+    expect(r.masterOpenQueue.map((p) => p.name)).toEqual(['A', 'B', 'C', 'D']);
+    expect(r.pendingPlayers.map((p) => p.name)).toEqual(['Late']);
+  });
+
+  it('leaves players pending if they never entered a queue', () => {
+    const late = o('Late');
+    const r = restoreActivatedPendingAfterUndo({
+      pendingIdsAtScore: [late.uuid],
+      masterOpenQueue: [o('A'), o('B')],
+      masterWomenQueue: [w('M')],
+      currentPending: [late],
+    });
+    expect(r.masterOpenQueue.map((p) => p.name)).toEqual(['A', 'B']);
+    expect(r.pendingPlayers.map((p) => p.name)).toEqual(['Late']);
+  });
+});
+
 /** Simulates scoring a point: advance raw indices by current pattern counts. */
 function advanceRotationForPoint(
   lineIndex: number,
@@ -446,7 +473,6 @@ describe('coach stress scenarios (rec league)', () => {
       openIndex: oi,
       womenIndex: wi,
       lineIndex: lineIdx,
-      pointNumber: 5,
       genderRatioMode: mode,
       lineupSize: size,
     });
@@ -461,7 +487,6 @@ describe('coach stress scenarios (rec league)', () => {
       openIndex: adv.openIndex,
       womenIndex: adv.womenIndex,
       lineIndex: adv.nextLineIndex,
-      pointNumber: 6,
       genderRatioMode: mode,
       lineupSize: size,
     });
@@ -469,7 +494,7 @@ describe('coach stress scenarios (rec league)', () => {
     expect(pendingAfterPoint.activate.map((p) => p.name)).toEqual(['Straggler']);
   });
 
-  it('late arrival on point 1 when gender is short: immediate activate path (no pending)', () => {
+  it('late arrival on a short line stays pending (does not join this point)', () => {
     const opens = [o('A'), o('B')];
     const women = [w('M'), w('N'), w('P')];
     const lateOpen = o('Fill');
@@ -480,11 +505,10 @@ describe('coach stress scenarios (rec league)', () => {
       openIndex: 0,
       womenIndex: 0,
       lineIndex: 0,
-      pointNumber: 1,
       genderRatioMode: 'ABBA',
       lineupSize: 7,
     });
-    expect(part.activate.map((p) => p.name)).toEqual(['Fill']);
-    expect(part.stillPending).toEqual([]);
+    expect(part.activate).toEqual([]);
+    expect(part.stillPending.map((p) => p.name)).toEqual(['Fill']);
   });
 });
