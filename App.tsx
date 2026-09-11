@@ -1,11 +1,10 @@
 // ScoreboardApp.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Player, type GenderRatioMode, type LineupSize, type StartsOn, type Theme } from './src/types';
+import { Player, type LineupSize, type SplitCycle, type Theme } from './src/types';
 import { PlayerManager } from './src/components/PlayerManager';
 import { ScoreBoard } from './src/components/ScoreBoard';
 import { SettingsModal } from './src/components/SettingsModal';
 import { HomeScreen } from './src/components/HomeScreen';
-import { RosterSetup } from './src/components/RosterSetup';
 import { getLine, getWrapped } from './src/utils/lineRotation';
 import {
   applySubstitutionToQueue,
@@ -13,6 +12,8 @@ import {
   assignNumbersByGender,
   getGenderPattern,
   insertPlayerAtGenderEndOfRoster,
+  clampOpenCount,
+  DEFAULT_STARTING_OPEN,
 } from './src/utils/rotationHelpers';
 import {
   applyQueueRemovalsForRosterChange,
@@ -25,7 +26,7 @@ import {
 import { COLORS } from './src/constants';
 import { loadRosterForTeam, saveRosterForTeam } from './src/utils/rosterStorage';
 import './src/global.css';
-import { GradientBlobs } from './src/components/ScoreBoard';
+import { AppShell } from './src/components/AppShell';
 
 // No hardcoded roster - players are added each game
 
@@ -41,12 +42,50 @@ interface ScoreEvent {
   pendingPlayerIds: string[];
 }
 
+function readLineupSize(): LineupSize {
+  if (typeof window === 'undefined') return 7;
+  const n = Number.parseInt(window.localStorage.getItem('ultimate-lineup-size') ?? '', 10);
+  if (n === 4 || n === 5 || n === 6 || n === 7) return n;
+  return 7;
+}
+
+function readSplitCycle(): SplitCycle {
+  if (typeof window === 'undefined') return 'ABBA';
+  const c = window.localStorage.getItem('ultimate-split-cycle');
+  if (c === 'same' || c === 'ABBA' || c === 'AAB') return c;
+  return 'ABBA';
+}
+
+function readStartingOpen(size: LineupSize): number {
+  if (typeof window === 'undefined') return DEFAULT_STARTING_OPEN[size];
+  const saved = window.localStorage.getItem('ultimate-starting-open');
+  if (saved != null) {
+    const n = Number.parseInt(saved, 10);
+    if (Number.isFinite(n)) return clampOpenCount(n, size);
+  }
+  let startsOn = window.localStorage.getItem('ultimate-starts-on');
+  const legacy = window.localStorage.getItem('ultimate-pattern-start-offset');
+  if (legacy != null) {
+    const parsed = Number.parseInt(legacy, 10);
+    try {
+      window.localStorage.removeItem('ultimate-pattern-start-offset');
+    } catch {
+      // ignore
+    }
+    if (Number.isFinite(parsed) && parsed !== 0) startsOn = 'W';
+  }
+  if (startsOn === 'W') {
+    return clampOpenCount(size - DEFAULT_STARTING_OPEN[size], size);
+  }
+  return DEFAULT_STARTING_OPEN[size];
+}
+
 export default function App() {
-  const scrollViewRef = useRef<HTMLDivElement>(null);
   const prevLineIndexRef = useRef(0);
   const [showHomeScreen, setShowHomeScreen] = useState<boolean | null>(null); // null = loading
-  const [showRosterSetup, setShowRosterSetup] = useState(false);
-  const [rosterSetupPlayers, setRosterSetupPlayers] = useState<Player[]>([]);
+  const [showRoster, setShowRoster] = useState(false);
+  const [setupStep, setSetupStep] = useState<'roster' | 'line'>('roster');
+  const [usingSavedRoster, setUsingSavedRoster] = useState(false);
   const [team1Name, setTeam1Name] = useState('');
   const [team2Name, setTeam2Name] = useState('Away');
   const [team1Score, setTeam1Score] = useState(0);
@@ -59,36 +98,15 @@ export default function App() {
   const [lineIndex, setLineIndex] = useState(0);
   const [pointNumber, setPointNumber] = useState(1);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [gameStartTime, setGameStartTime] = useState<string>('18:45'); // 7:00pm default
-  const [halftimeTime, setHalftimeTime] = useState<string>('19:30');   // 7:30pm default
-  const [endTime, setEndTime] = useState<string>('20:15');             // 8:15pm default
-  const [genderRatioMode, setGenderRatioMode] = useState<GenderRatioMode>('ABBA');
-  const [lineupSize, setLineupSize] = useState<LineupSize>(7);
-  const [startsOn, setStartsOn] = useState<StartsOn>(() => {
-    if (typeof window === 'undefined') return 'O';
-    const saved = window.localStorage.getItem('ultimate-starts-on');
-    if (saved === 'O' || saved === 'W') return saved;
-    // Migration: previous version stored a numeric pattern offset (0-3 for ABBA,
-    // 0-2 for AAB). Offsets 1+ mostly indicated a woman-matching start.
-    const legacy = window.localStorage.getItem('ultimate-pattern-start-offset');
-    if (legacy != null) {
-      const parsed = Number.parseInt(legacy, 10);
-      window.localStorage.removeItem('ultimate-pattern-start-offset');
-      if (Number.isFinite(parsed) && parsed !== 0) return 'W';
-    }
-    return 'O';
-  });
+  const [lineupSize, setLineupSize] = useState<LineupSize>(() => readLineupSize());
+  const [startingOpen, setStartingOpen] = useState(() => readStartingOpen(readLineupSize()));
+  const [splitCycle, setSplitCycle] = useState<SplitCycle>(() => readSplitCycle());
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === 'undefined') return 'dark';
     const saved = window.localStorage.getItem('ultimate-theme');
     return saved === 'light' ? 'light' : 'dark';
   });
   const [scoreHistory, setScoreHistory] = useState<ScoreEvent[]>([]);
-
-  // Countdown logic (moved from ScoreBoard)
-  const [halftimeCountdown, setHalftimeCountdown] = useState('');
-  const [endCountdown, setEndCountdown] = useState('');
-  const [showTimers, setShowTimers] = useState(false);
 
   // Track rotation index for men and women
   const [openIndex, setOpenIndex] = useState(0);
@@ -143,39 +161,28 @@ export default function App() {
     resetScoreboardForNewSession();
     setTeam1Name(trimmed);
     setShowHomeScreen(false);
-    setRoster([]);
-    setMasterOpenQueue([]);
-    setMasterWomenQueue([]);
-    setRosterSetupPlayers(loadRosterForTeam(trimmed) ?? []);
-    setShowRosterSetup(true);
-  };
-
-  const handleRosterComplete = (newRoster: Player[]) => {
-    applyNewGameRoster(newRoster);
-    setGameStarted(false);
-    setShowRosterSetup(false);
+    const loaded = loadRosterForTeam(trimmed) ?? [];
+    applyNewGameRoster(loaded);
+    setShowRoster(true);
+    setSetupStep('roster');
+    setUsingSavedRoster(loaded.length > 0);
   };
 
   const handleKickoff = () => {
     setGameStarted(true);
-  };
-
-  const handleBackToHomeScreen = () => {
-    setShowRosterSetup(false);
-    setRosterSetupPlayers([]);
-    setShowHomeScreen(true);
+    setShowRoster(false);
   };
 
   const handleChangeTeam = () => {
     setShowHomeScreen(true);
-    setShowRosterSetup(false);
-    setRosterSetupPlayers([]);
+    setShowRoster(false);
+    setSetupStep('roster');
   };
 
   // Calculate total players used so far for proper rotation
   const getPattern = useCallback(
-    (idx: number) => getGenderPattern(idx, genderRatioMode, lineupSize, startsOn),
-    [genderRatioMode, lineupSize, startsOn]
+    (idx: number) => getGenderPattern(idx, lineupSize, startingOpen, splitCycle),
+    [lineupSize, startingOpen, splitCycle]
   );
 
   // Web-compatible orientation lock (CSS-based)
@@ -200,76 +207,15 @@ export default function App() {
     }
   }, [theme]);
 
-  // Persist starts-on choice so a game-day setting survives a page reload.
   useEffect(() => {
     try {
-      window.localStorage.setItem('ultimate-starts-on', startsOn);
+      window.localStorage.setItem('ultimate-lineup-size', String(lineupSize));
+      window.localStorage.setItem('ultimate-starting-open', String(startingOpen));
+      window.localStorage.setItem('ultimate-split-cycle', splitCycle);
     } catch {
       // ignore quota errors
     }
-  }, [startsOn]);
-
-  useEffect(() => {
-    function parseTimeToDate(timeStr: string | undefined): Date | null {
-      if (!timeStr) return null;
-      const now = new Date();
-      const [h, m] = timeStr.split(':').map(Number);
-      if (isNaN(h) || isNaN(m)) return null;
-      const d = new Date(now);
-      d.setHours(h, m, 0, 0);
-      // If the time has already passed today, set it to today instead of tomorrow
-      if (d < now) {
-        d.setDate(d.getDate());
-      }
-      return d;
-    }
-
-    function formatCountdown(ms: number): string {
-      if (ms <= 0) return '00:00';
-      const totalSeconds = Math.floor(ms / 1000);
-      const min = Math.floor(totalSeconds / 60);
-      const sec = totalSeconds % 60;
-      return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-    }
-
-    const interval = setInterval(() => {
-      const now = new Date();
-      const startDate = parseTimeToDate(gameStartTime);
-      const halftimeDate = parseTimeToDate(halftimeTime);
-      const endDate = parseTimeToDate(endTime);
-      
-      if (!startDate || !halftimeDate || !endDate) {
-        setHalftimeCountdown('');
-        setEndCountdown('');
-        setShowTimers(false);
-        return;
-      }
-
-      // Check if current time is >= game start time
-      const isGameStarted = now >= startDate;
-      
-      // Check if we're within 1 hour after game end
-      const oneHourAfterEnd = new Date(endDate.getTime() + 60 * 60 * 1000);
-      const isWithinOneHourAfterEnd = now <= oneHourAfterEnd;
-      
-      // Only show timers if game has started and we're not more than 1 hour after end
-      const shouldShowTimers = isGameStarted && isWithinOneHourAfterEnd;
-      setShowTimers(shouldShowTimers);
-
-      if (shouldShowTimers) {
-        const halftimeMs = halftimeDate.getTime() - now.getTime();
-        const endMs = endDate.getTime() - now.getTime();
-
-        setHalftimeCountdown(formatCountdown(halftimeMs));
-        setEndCountdown(formatCountdown(endMs));
-      } else {
-        setHalftimeCountdown('');
-        setEndCountdown('');
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [gameStartTime, halftimeTime, endTime]);
+  }, [lineupSize, startingOpen, splitCycle]);
 
   // Calculate current queues based on rotation
   const currentPattern = getPattern(lineIndex);
@@ -427,35 +373,12 @@ export default function App() {
     } else {
       const stillPendingIds = new Set(pendingPlayers.map(p => p.uuid));
       const activePlayers = newRoster.filter(p => !stillPendingIds.has(p.uuid));
-      const pat = getPattern(lineIndex);
-      const normO =
-        nextMasterOpenQueue.length > 0
-          ? nextOpenIndex % nextMasterOpenQueue.length
-          : 0;
-      const normW =
-        nextMasterWomenQueue.length > 0
-          ? nextWomenIndex % nextMasterWomenQueue.length
-          : 0;
-      const desiredOpenSlice = getWrapped(
-        nextMasterOpenQueue,
-        normO,
-        pat.men
-      );
-      const desiredWomenSlice = getWrapped(
-        nextMasterWomenQueue,
-        normW,
-        pat.women
-      );
       const reordered = applyDragReorderToMasterQueues({
         masterOpenQueue: nextMasterOpenQueue,
         masterWomenQueue: nextMasterWomenQueue,
         openIndex: nextOpenIndex,
         womenIndex: nextWomenIndex,
         newRosterActivePlayers: activePlayers,
-        desiredOpenLineSlice: desiredOpenSlice,
-        desiredWomenLineSlice: desiredWomenSlice,
-        openSliceLen: pat.men,
-        womenSliceLen: pat.women,
       });
       nextMasterOpenQueue = reordered.masterOpenQueue;
       nextMasterWomenQueue = reordered.masterWomenQueue;
@@ -515,9 +438,9 @@ export default function App() {
       openIndex,
       womenIndex,
       lineIndex,
-      genderRatioMode,
+      startingOpen,
       lineupSize,
-      startsOn,
+      splitCycle,
     });
 
     if (activate.length > 0) {
@@ -534,7 +457,7 @@ export default function App() {
       setWomenIndex(applied.womenIndex);
       setPendingPlayers(stillPending);
     }
-  }, [lineIndex, openIndex, womenIndex, pointNumber, genderRatioMode, lineupSize, startsOn]);
+  }, [lineIndex, openIndex, womenIndex, pointNumber, startingOpen, lineupSize, splitCycle]);
 
   // Add effect to handle gender ratio mode changes
   useEffect(() => {
@@ -550,7 +473,7 @@ export default function App() {
     setMasterWomenQueue(newWomenPlayers);
     setOpenIndex(newOpenIndex);
     setWomenIndex(newWomenIndex);
-  }, [genderRatioMode, lineupSize, startsOn]);
+  }, [startingOpen, lineupSize, splitCycle]);
 
   // Roster order follows master queues + extras (pending / edge); keeps subs and queue-only updates in sync.
   useEffect(() => {
@@ -569,41 +492,57 @@ export default function App() {
   }, [masterOpenQueue, masterWomenQueue]);
 
   useEffect(() => {
-    if (showHomeScreen || showRosterSetup) return;
+    if (showHomeScreen) return;
     const key = team1Name.trim();
     if (!key) return;
     saveRosterForTeam(key, roster);
-  }, [roster, team1Name, showHomeScreen, showRosterSetup]);
+  }, [roster, team1Name, showHomeScreen]);
 
   // Show loading state briefly while checking localStorage
   if (showHomeScreen === null) {
-    return (
-      <div style={styles.container}>
-        <GradientBlobs />
-      </div>
-    );
+    return <AppShell showHeader={false} />;
   }
 
   if (showHomeScreen) {
     return <HomeScreen onStart={handleStartGame} />;
   }
 
-  if (showRosterSetup) {
-    return (
-      <RosterSetup
-        key={team1Name}
-        teamName={team1Name}
-        initialRoster={rosterSetupPlayers}
-        onComplete={handleRosterComplete}
-        onBack={handleBackToHomeScreen}
-      />
-    );
-  }
-
   return (
-    <div style={styles.container}>
-      <GradientBlobs />
-      <div style={styles.mainContent}>
+    <>
+      {showRoster ? (
+        <PlayerManager
+          roster={roster}
+          onRosterChange={onRosterChange}
+          onLateArrival={handleLateArrival}
+          pendingPlayers={pendingPlayers}
+          gameStarted={gameStarted}
+          setupStep={setupStep}
+          usingSavedRoster={usingSavedRoster}
+          masterOpenQueue={masterOpenQueue}
+          masterWomenQueue={masterWomenQueue}
+          onForcePendingToRotation={handleForcePendingToRotation}
+          onOpenScoreboard={() => setShowRoster(false)}
+          onContinueToLine={() => setSetupStep('line')}
+          onReady={() => setShowRoster(false)}
+          onOpenSettings={() => setSettingsVisible(true)}
+          onBack={
+            gameStarted
+              ? undefined
+              : setupStep === 'roster'
+                ? handleChangeTeam
+                : () => setSetupStep('roster')
+          }
+          lineupSize={lineupSize}
+          startingOpen={startingOpen}
+          splitCycle={splitCycle}
+          onLineupSizeChange={(size) => {
+            setLineupSize(size);
+            setStartingOpen((open) => clampOpenCount(open, size));
+          }}
+          onStartingOpenChange={setStartingOpen}
+          onSplitCycleChange={setSplitCycle}
+        />
+      ) : (
         <ScoreBoard
           team1Name={team1Name}
           team2Name={team2Name}
@@ -615,13 +554,19 @@ export default function App() {
           pointNumber={pointNumber}
           onReset={handleReset}
           onUndo={handleUndo}
-          genderRatioMode={genderRatioMode}
+          startingOpen={startingOpen}
           lineupSize={lineupSize}
-          startsOn={startsOn}
-          halftimeCountdown={halftimeCountdown}
-          endCountdown={endCountdown}
-          showTimers={showTimers}
+          splitCycle={splitCycle}
           setSettingsVisible={setSettingsVisible}
+          onOpenRoster={() => {
+            setShowRoster(true);
+            if (!gameStarted) setSetupStep('line');
+          }}
+          onBackToSetup={() => {
+            setShowRoster(true);
+            setSetupStep('line');
+          }}
+          pendingCount={pendingPlayers.length}
           roster={roster}
           openQueue={currentOpenQueue}
           womanQueue={currentWomanQueue}
@@ -632,18 +577,7 @@ export default function App() {
           onKickoff={handleKickoff}
           onSubstitute={handleSubstitute}
         />
-      </div>
-      <PlayerManager
-        roster={roster}
-        onRosterChange={onRosterChange}
-        scrollViewRef={scrollViewRef}
-        onLateArrival={handleLateArrival}
-        pendingPlayers={pendingPlayers}
-        gameStarted={gameStarted}
-        masterOpenQueue={masterOpenQueue}
-        masterWomenQueue={masterWomenQueue}
-        onForcePendingToRotation={handleForcePendingToRotation}
-      />
+      )}
       <SettingsModal
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
@@ -651,18 +585,15 @@ export default function App() {
         team2Name={team2Name}
         onTeam1NameChange={setTeam1Name}
         onTeam2NameChange={setTeam2Name}
-        gameStartTime={gameStartTime}
-        halftimeTime={halftimeTime}
-        endTime={endTime}
-        onGameStartTimeChange={setGameStartTime}
-        onHalftimeTimeChange={setHalftimeTime}
-        onEndTimeChange={setEndTime}
-        genderRatioMode={genderRatioMode}
-        onGenderRatioModeChange={setGenderRatioMode}
+        startingOpen={startingOpen}
+        onStartingOpenChange={setStartingOpen}
         lineupSize={lineupSize}
-        onLineupSizeChange={setLineupSize}
-        startsOn={startsOn}
-        onStartsOnChange={setStartsOn}
+        onLineupSizeChange={(size) => {
+          setLineupSize(size);
+          setStartingOpen((open) => clampOpenCount(open, size));
+        }}
+        splitCycle={splitCycle}
+        onSplitCycleChange={setSplitCycle}
         theme={theme}
         onThemeChange={setTheme}
         onReset={handleReset}
@@ -677,7 +608,7 @@ export default function App() {
         masterOpenQueue={masterOpenQueue}
         masterWomenQueue={masterWomenQueue}
       />
-    </div>
+    </>
   );
 }
 

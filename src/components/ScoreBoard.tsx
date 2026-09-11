@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Player, type GenderRatioMode, type LineupSize, type StartsOn } from '../types';
-import { getGenderPattern } from '../utils/rotationHelpers';
-import { getLine } from '../utils/lineRotation';
+import { Player, type LineupSize, type SplitCycle } from '../types';
+import { getGenderPattern, isSplitCycleAvailable } from '../utils/rotationHelpers';
+import { getLineSeats } from '../utils/lineRotation';
 import { THEME } from '../constants';
+import { AppShell } from './AppShell';
+import { PlayerSeat } from './PlayerSeat';
 
 const COLORS = {
   background: THEME.bgApp,
@@ -60,16 +62,6 @@ if (typeof document !== 'undefined') {
   document.head.appendChild(style);
 }
 
-export const GradientBlobs = () => {
-  return (
-    <div style={styles.blobsContainer}>
-      <div style={{ ...styles.blob, ...styles.blob1 }} />
-      <div style={{ ...styles.blob, ...styles.blob2 }} />
-      <div style={{ ...styles.blob, ...styles.blob3 }} />
-    </div>
-  );
-};
-
 interface ScoreBoardProps {
   team1Name: string;
   team2Name: string;
@@ -81,13 +73,12 @@ interface ScoreBoardProps {
   pointNumber: number;
   onReset: () => void;
   onUndo: () => void;
-  genderRatioMode?: GenderRatioMode;
+  startingOpen?: number;
   lineupSize?: LineupSize;
-  startsOn?: StartsOn;
-  halftimeCountdown: string;
-  endCountdown: string;
-  showTimers: boolean;
+  splitCycle?: SplitCycle;
   setSettingsVisible: (visible: boolean) => void;
+  onOpenRoster?: () => void;
+  pendingCount?: number;
   roster: Player[];
   openQueue: Player[];
   womanQueue: Player[];
@@ -96,6 +87,7 @@ interface ScoreBoardProps {
   scoreHistory: any[];
   gameStarted?: boolean;
   onKickoff?: () => void;
+  onBackToSetup?: () => void;
   onSubstitute?: (outPlayer: Player, inPlayer: Player) => void;
 }
 
@@ -110,13 +102,12 @@ export function ScoreBoard({
   pointNumber,
   onReset,
   onUndo,
-  genderRatioMode = 'ABBA',
+  startingOpen = 4,
   lineupSize = 7,
-  startsOn = 'O',
-  halftimeCountdown,
-  endCountdown,
-  showTimers,
+  splitCycle = 'ABBA',
   setSettingsVisible,
+  onOpenRoster,
+  pendingCount = 0,
   roster,
   openQueue,
   womanQueue,
@@ -125,6 +116,7 @@ export function ScoreBoard({
   scoreHistory,
   gameStarted = true,
   onKickoff,
+  onBackToSetup,
   onSubstitute,
 }: ScoreBoardProps) {
   const abbaPattern = ['A', 'B', 'B', 'A'] as const;
@@ -144,11 +136,11 @@ export function ScoreBoard({
   const openPlayers = openQueue;
   const womenPlayers = womanQueue;
 
-  const currentPattern = getGenderPattern(lineIndex, genderRatioMode, lineupSize, startsOn);
-  const currentLine = getLine(openPlayers, womenPlayers, currentPattern);
+  const currentPattern = getGenderPattern(lineIndex, lineupSize, startingOpen, splitCycle);
+  const currentSeats = getLineSeats(openPlayers, womenPlayers, currentPattern);
 
-  const nextPattern = getGenderPattern(lineIndex + 1, genderRatioMode, lineupSize, startsOn);
-  const nextLine = getLine(nextOpenQueue, nextWomanQueue, nextPattern);
+  const nextPattern = getGenderPattern(lineIndex + 1, lineupSize, startingOpen, splitCycle);
+  const nextSeats = getLineSeats(nextOpenQueue, nextWomanQueue, nextPattern);
 
   const scoreDiff = team1Score - team2Score;
 
@@ -222,7 +214,7 @@ export function ScoreBoard({
     width: '100%',
     margin: '0 auto',
     background: undefined,
-    borderRadius: '6px',
+    borderRadius: '12px',
     padding: '8px 0',
   };
 
@@ -257,7 +249,7 @@ export function ScoreBoard({
     minWidth: '36px',
     textAlign: 'center' as const,
     backgroundColor: THEME.bgInputSoft,
-    borderRadius: '5.5px',
+    borderRadius: '8px',
     padding: '0 8.5px',
   };
 
@@ -278,7 +270,7 @@ export function ScoreBoard({
     left: 0,
     width: '100%',
     height: '100%',
-    borderRadius: '11px',
+    borderRadius: '12px',
     pointerEvents: 'none' as const,
     zIndex: 0,
     backgroundColor: 'rgba(46, 204, 113, 0.4)', // green
@@ -308,40 +300,38 @@ export function ScoreBoard({
   }
 
   return (
+    <AppShell
+      title={team1Name}
+      left={
+        gameStarted ? (
+          <>
+            <button
+              className="btn btn-danger-ghost"
+              style={{ opacity: scoreHistory.length === 0 ? 0.45 : 1 }}
+              onClick={onUndo}
+              disabled={scoreHistory.length === 0}
+            >
+              Undo
+            </button>
+            <button className="btn btn-ghost" onClick={() => onOpenRoster?.()}>
+              {pendingCount > 0 ? `Roster · ${pendingCount} pending` : 'Roster'}
+            </button>
+          </>
+        ) : (
+          <button type="button" className="btn btn-ghost" onClick={onBackToSetup}>
+            ← Back
+          </button>
+        )
+      }
+      right={
+        gameStarted ? (
+          <button className="btn btn-ghost" onClick={() => setSettingsVisible(true)}>
+            Settings
+          </button>
+        ) : null
+      }
+    >
     <div style={styles.container}>
-      <div style={{ ...styles.topRow, marginBottom: isMobile ? '2.5px' : styles.topRow.marginBottom }}>
-        <div style={styles.timersSection}>
-          {showTimers && (
-            <>
-              <span style={styles.timerText}>Halftime in: {halftimeCountdown}</span>
-              <span style={styles.timerText}>Game end: {endCountdown}</span>
-            </>
-          )}
-        </div>
-        <div style={{
-          ...styles.settingsSection,
-        }}>
-          <button
-            style={{
-              ...styles.undoButton,
-              opacity: scoreHistory.length === 0 ? 0.5 : 1,
-              cursor: scoreHistory.length === 0 ? 'not-allowed' : 'pointer',
-            }}
-            onClick={onUndo}
-            disabled={scoreHistory.length === 0}
-          >
-            UNDO
-          </button>
-          <button
-            style={{
-              ...styles.settingsButton,
-            }}
-            onClick={() => setSettingsVisible(true)}
-          >
-            SETTINGS
-          </button>
-        </div>
-      </div>
       <div
         style={{
           ...styles.topBar,
@@ -355,10 +345,11 @@ export function ScoreBoard({
           <button
             style={{
               ...teamScoreButtonStyle,
-              opacity: gameStarted ? 1 : 0.55,
+              opacity: 1,
               cursor: gameStarted ? 'pointer' : 'not-allowed',
             }}
             data-team="team1"
+            className="score-tile"
             onClick={() => handleScoreClick('team1')}
             aria-disabled={!gameStarted}
           >
@@ -371,7 +362,7 @@ export function ScoreBoard({
               position: 'relative',
               zIndex: 1,
             }}>{team1Name}</h2>
-            <h1 style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team1Score}</h1>
+            <h1 className="score-num" style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team1Score}</h1>
           </button>
           {/* Score diff only visible between scores on non-mobile */}
           {!isMobile && (
@@ -380,10 +371,11 @@ export function ScoreBoard({
           <button
             style={{
               ...teamScoreButtonStyle,
-              opacity: gameStarted ? 1 : 0.55,
+              opacity: 1,
               cursor: gameStarted ? 'pointer' : 'not-allowed',
             }}
             data-team="team2"
+            className="score-tile"
             onClick={() => handleScoreClick('team2')}
             aria-disabled={!gameStarted}
           >
@@ -396,19 +388,39 @@ export function ScoreBoard({
               position: 'relative',
               zIndex: 1,
             }}>{team2Name}</h2>
-            <h1 style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team2Score}</h1>
+            <h1 className="score-num" style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team2Score}</h1>
           </button>
         </div>
       </div>
 
       {!gameStarted && (
-        <div style={styles.kickoffBar}>
-          <p style={styles.kickoffCopy}>
-            Add anyone who just showed up. They join this line. Tap Start Game when the disc is pulled.
-          </p>
-          <button type="button" style={styles.kickoffButton} onClick={onKickoff}>
-            Start Game
-          </button>
+        <div
+          className="confirm-overlay confirm-overlay--soft"
+          onClick={onBackToSetup}
+          role="presentation"
+        >
+          <div
+            className="confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kickoff-confirm-title"
+          >
+            <h3 id="kickoff-confirm-title" className="confirm-title">
+              Start Game
+            </h3>
+            <p className="confirm-copy">
+              This is the first line. Back to change it, or start when the disc is pulled.
+            </p>
+            <div className="confirm-actions">
+              <button type="button" className="btn btn-ghost" onClick={onBackToSetup}>
+                Back
+              </button>
+              <button type="button" className="btn btn-primary" onClick={onKickoff}>
+                Start Game
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -441,7 +453,7 @@ export function ScoreBoard({
             </div>
           )}
           {/* Right: rotating pattern indicator */}
-          {genderRatioMode === 'ABBA' && (
+          {splitCycle === 'ABBA' && isSplitCycleAvailable(lineupSize, startingOpen, 'ABBA') && (
             <div style={{
               position: 'absolute',
               right: 0,
@@ -462,7 +474,7 @@ export function ScoreBoard({
               </div>
             </div>
           )}
-          {genderRatioMode === 'AAB' && (
+          {splitCycle === 'AAB' && isSplitCycleAvailable(lineupSize, startingOpen, 'AAB') && (
             <div style={{
               position: 'absolute',
               right: 0,
@@ -490,26 +502,29 @@ export function ScoreBoard({
         <div style={lineSectionStyle}>
           <h3 style={styles.lineTitle}>Current Line</h3>
           <div style={styles.playerListVertical}>
-            {currentLine.map((player: Player) => (
-              <div key={player.uuid} style={styles.currentLineRow}>
-                <div
-                  style={{
-                    ...styles.playerContainer,
-                    ...styles.currentLineNameBlock,
-                    backgroundColor: player.gender === 'O' ? COLORS.open : COLORS.women,
-                  }}
-                >
-                  <span style={styles.playerText}>{player.name}</span>
-                </div>
-                {onSubstitute ? (
-                  <button
-                    type="button"
-                    style={styles.subSideButton}
-                    onClick={() => setSubOut(player)}
-                    aria-label={`Substitute ${player.name}`}
-                  >
-                    Sub
-                  </button>
+            {currentSeats.map((seat) => (
+              <div
+                key={seat.kind === 'player' ? seat.player.uuid : seat.key}
+                className="player-seat-row"
+              >
+                {seat.kind === 'player' ? (
+                  <PlayerSeat gender={seat.player.gender} name={seat.player.name} />
+                ) : (
+                  <PlayerSeat gender={seat.gender} empty />
+                )}
+                {onSubstitute && gameStarted ? (
+                  seat.kind === 'player' ? (
+                    <button
+                      type="button"
+                      className="btn btn-sub"
+                      onClick={() => setSubOut(seat.player)}
+                      aria-label={`Substitute ${seat.player.name}`}
+                    >
+                      Sub
+                    </button>
+                  ) : (
+                    <span className="sub-spacer" />
+                  )
                 ) : null}
               </div>
             ))}
@@ -518,11 +533,18 @@ export function ScoreBoard({
         <div style={lineSectionStyle}>
           <h3 style={styles.lineTitle}>Next Line</h3>
           <div style={styles.playerListVertical}>
-            {nextLine.map((player: Player) => (
-              <div key={player.uuid} style={{ ...styles.playerContainer, backgroundColor: player.gender === 'O' ? COLORS.openMuted : COLORS.womenMuted }}>
-                <span style={{ ...styles.playerText, color: COLORS.textSecondary }}>{player.name}</span>
-              </div>
-            ))}
+            {nextSeats.map((seat) =>
+              seat.kind === 'player' ? (
+                <PlayerSeat
+                  key={seat.player.uuid}
+                  gender={seat.player.gender}
+                  name={seat.player.name}
+                  tone="next"
+                />
+              ) : (
+                <PlayerSeat key={seat.key} gender={seat.gender} empty />
+              )
+            )}
           </div>
         </div>
       </div>
@@ -575,15 +597,38 @@ export function ScoreBoard({
         </div>
       )}
     </div>
+    </AppShell>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
-    padding: '17px',
+    padding: 0,
     position: 'relative',
     display: 'flex',
     flexDirection: 'column'
+  },
+  chromeBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '12px',
+  },
+  ghostButton: {
+    backgroundColor: THEME.bgSubtle,
+    color: COLORS.text,
+    border: `1px solid ${THEME.borderSoft}`,
+    padding: '8px 14px',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: 'none',
+  },
+  undoGhost: {
+    color: THEME.danger,
+    borderColor: THEME.dangerBorder,
+    backgroundColor: THEME.dangerTint,
   },
   blobsContainer: {
     position: 'fixed',
@@ -608,11 +653,11 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '8.5px',
+    padding: '8px',
     backgroundColor: THEME.bgPanel,
-    borderRadius: '11px',
-    marginBottom: '17px',
-    border: `.5px solid ${THEME.borderStrong}`,
+    borderRadius: '12px',
+    marginBottom: '16px',
+    border: `1px solid ${THEME.borderSoft}`,
     boxShadow: THEME.shadowCard,
   },
   scoreContainer: {
@@ -627,45 +672,50 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     background: THEME.bgSubtle,
     border: '2px solid transparent',
-    borderRadius: '11px',
+    borderRadius: '12px',
     color: 'inherit',
-    padding: '12.5px 16px',
+    padding: '12px 16px',
     cursor: 'pointer',
     transition: 'all 0.3s ease',
-    minHeight: '70px',
+    minHeight: '72px',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
   },
   teamName: { 
     margin: 0, 
-    fontSize: '17.5px', 
+    fontSize: '15px', 
     fontWeight: '600', 
     color: COLORS.textSecondary,
-    marginBottom: '4px'
+    marginBottom: '4px',
+    letterSpacing: '0.02em',
   },
   score: { 
     margin: 0, 
-    fontSize: '45px', 
-    fontWeight: 'bold', 
+    fontSize: '52px', 
+    fontWeight: 800, 
     color: COLORS.text,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.03em',
+    lineHeight: 1,
   },
   scoreDiff: {
     fontSize: '22px',
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text,
-    padding: '0 8.5px',
+    padding: '4px 10px',
     backgroundColor: THEME.bgInputSoft,
-    borderRadius: '5.5px',
-    minWidth: '36px',
-    textAlign: 'center'
+    borderRadius: '8px',
+    minWidth: '40px',
+    textAlign: 'center',
+    fontVariantNumeric: 'tabular-nums',
   },
   settingsButton: {
     backgroundColor: COLORS.open,
     color: THEME.textOnAccent,
     border: 'none',
     padding: '10px 20px',
-    borderRadius: '6px',
+    borderRadius: '8px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
@@ -677,19 +727,19 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '8.5px',
+    padding: '10px 12px',
     backgroundColor: THEME.bgPanel,
-    borderRadius: '7.5px',
-    marginBottom: '17px',
-    border: `.5px solid ${THEME.borderStrong}`,
+    borderRadius: '12px',
+    marginBottom: '16px',
+    border: `1px solid ${THEME.borderSoft}`,
     boxShadow: THEME.shadowCard,
   },
-  lineInfoLeft: { display: 'flex', alignItems: 'center', gap: '12.5px' },
-  lineInfoText: { fontSize: '15.5px', fontWeight: 'bold', color: COLORS.text },
-  patternDisplay: { display: 'flex', gap: '6.5px' },
+  lineInfoLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
+  lineInfoText: { fontSize: '15px', fontWeight: '700', color: COLORS.text },
+  patternDisplay: { display: 'flex', gap: '6px' },
   patternItem: {
-    padding: '5px 10px',
-    borderRadius: '3.5px',
+    padding: '4px 10px',
+    borderRadius: '6px',
     backgroundColor: THEME.patternPillBg,
   },
   patternItemActive: { backgroundColor: THEME.patternPillActiveBg },
@@ -704,11 +754,11 @@ const styles: Record<string, React.CSSProperties> = {
   lineSection: {
     flex: 1,
     backgroundColor: THEME.bgPanel,
-    borderRadius: '7.5px',
-    padding: '12.5px',
+    borderRadius: '12px',
+    padding: '12px',
     display: 'flex',
     flexDirection: 'column',
-    border: `.5px solid ${THEME.borderStrong}`,
+    border: `1px solid ${THEME.borderSoft}`,
     boxShadow: THEME.shadowCard,
   },
   lineTitle: {
@@ -721,12 +771,12 @@ const styles: Record<string, React.CSSProperties> = {
   playerListVertical: { 
     display: 'flex', 
     flexDirection: 'column', 
-    gap: '6.5px',
+    gap: '6px',
     flex: 1
   },
   playerContainer: {
-    padding: '8.5px 10.5px',
-    borderRadius: '3.5px',
+    padding: '10px 12px',
+    borderRadius: '8px',
     textAlign: 'center',
   },
   currentLineRow: {
@@ -745,13 +795,13 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
   },
   subSideButton: {
-    flex: '0 0 36px',
-    width: '36px',
-    border: 'none',
-    borderRadius: '3.5px',
+    flex: '0 0 44px',
+    width: '44px',
+    border: `1px solid ${THEME.borderSoft}`,
+    borderRadius: '8px',
     backgroundColor: THEME.bgSubtle,
-    color: COLORS.text,
-    fontSize: '11px',
+    color: COLORS.textSecondary,
+    fontSize: '12px',
     fontWeight: 700,
     letterSpacing: '0.02em',
     cursor: 'pointer',
@@ -759,7 +809,6 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '4px 2px',
-    boxShadow: THEME.shadowButton,
   },
   subOverlay: {
     position: 'fixed',
@@ -829,16 +878,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   playerText: {
     color: COLORS.text,
-    fontSize: '15.5px',
-    fontWeight: '500',
+    fontSize: '15px',
+    fontWeight: '600',
   },
   settingsSection: {
     display: 'flex',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    padding: '8.5px 0',
-    marginBottom: '8.5px',
-    gap: '8.5px',
+    padding: '8px 0',
+    marginBottom: '8px',
+    gap: '8px',
   },
   scoreDivider: {
     display: 'flex',
@@ -852,31 +901,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   topRow: {
     display: 'flex',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     marginBottom: '6.5px',
   },
-  timersSection: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5px',
-  },
-  timerText: {
-    color: COLORS.textSecondary,
-    fontSize: '13.5px',
-    fontWeight: 500,
-    letterSpacing: '0.5px',
-  },
   undoButton: {
-    backgroundColor: COLORS.delete,
-    color: THEME.textOnAccent,
-    border: 'none',
-    padding: '10px 20px',
-    borderRadius: '6px',
+    backgroundColor: THEME.dangerTint,
+    color: THEME.danger,
+    border: `1px solid ${THEME.dangerBorder}`,
+    padding: '8px 14px',
+    borderRadius: '8px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
-    boxShadow: THEME.shadowButton,
     opacity: 1,
     transition: 'background 0.2s, color 0.2s, opacity 0.2s ease',
   },

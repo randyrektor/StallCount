@@ -7,10 +7,12 @@ import {
   mergeRosterFromGenderQueues,
   getGenderPattern,
   getCycleLengthForMode,
-  modeHasStartingPoint,
+  splitCycleApplies,
+  isSplitCycleAvailable,
+  clampOpenCount,
   insertPlayerAtGenderEndOfRoster,
 } from './rotationHelpers';
-import type { Player, LineupSize } from '../types';
+import type { Player, LineupSize, SplitCycle } from '../types';
 
 const p = (name: string, gender: 'O' | 'W', n = 0): Player => ({
   uuid: name,
@@ -81,50 +83,88 @@ describe('preserveRotationIndexAfterReorder', () => {
 });
 
 describe('getGenderPattern', () => {
-  it('AAB + starts on O uses two 4-3 then one 3-4 per cycle', () => {
-    expect(getGenderPattern(0, 'AAB', 7, 'O')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(1, 'AAB', 7, 'O')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(2, 'AAB', 7, 'O')).toEqual({ men: 3, women: 4 });
-    expect(getGenderPattern(3, 'AAB', 7, 'O')).toEqual({ men: 4, women: 3 });
+  it('AAB with 4 open uses two 4-3 then one 3-4 per cycle', () => {
+    expect(getGenderPattern(0, 7, 4, 'AAB')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(1, 7, 4, 'AAB')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(2, 7, 4, 'AAB')).toEqual({ men: 3, women: 4 });
+    expect(getGenderPattern(3, 7, 4, 'AAB')).toEqual({ men: 4, women: 3 });
   });
 
-  it('AAB + starts on W uses two 3-4 then one 4-3 per cycle', () => {
-    expect(getGenderPattern(0, 'AAB', 7, 'W')).toEqual({ men: 3, women: 4 });
-    expect(getGenderPattern(1, 'AAB', 7, 'W')).toEqual({ men: 3, women: 4 });
-    expect(getGenderPattern(2, 'AAB', 7, 'W')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(3, 'AAB', 7, 'W')).toEqual({ men: 3, women: 4 });
+  it('AAB with 3 open uses two 3-4 then one 4-3 per cycle', () => {
+    expect(getGenderPattern(0, 7, 3, 'AAB')).toEqual({ men: 3, women: 4 });
+    expect(getGenderPattern(1, 7, 3, 'AAB')).toEqual({ men: 3, women: 4 });
+    expect(getGenderPattern(2, 7, 3, 'AAB')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(3, 7, 3, 'AAB')).toEqual({ men: 3, women: 4 });
   });
 
-  it('ABBA + starts on O alternates open-heavy / women-heavy as A B B A', () => {
-    expect(getGenderPattern(0, 'ABBA', 7, 'O')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(1, 'ABBA', 7, 'O')).toEqual({ men: 3, women: 4 });
-    expect(getGenderPattern(2, 'ABBA', 7, 'O')).toEqual({ men: 3, women: 4 });
-    expect(getGenderPattern(3, 'ABBA', 7, 'O')).toEqual({ men: 4, women: 3 });
+  it('ABBA with 4 open alternates 4-3 / 3-4 as A B B A', () => {
+    expect(getGenderPattern(0, 7, 4, 'ABBA')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(1, 7, 4, 'ABBA')).toEqual({ men: 3, women: 4 });
+    expect(getGenderPattern(2, 7, 4, 'ABBA')).toEqual({ men: 3, women: 4 });
+    expect(getGenderPattern(3, 7, 4, 'ABBA')).toEqual({ men: 4, women: 3 });
   });
 
-  it('ABBA + starts on W swaps which gender is A (women-heavy first)', () => {
-    expect(getGenderPattern(0, 'ABBA', 7, 'W')).toEqual({ men: 3, women: 4 });
-    expect(getGenderPattern(1, 'ABBA', 7, 'W')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(2, 'ABBA', 7, 'W')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(3, 'ABBA', 7, 'W')).toEqual({ men: 3, women: 4 });
+  it('ABBA with 3 open starts women-heavy (A is 3-4)', () => {
+    expect(getGenderPattern(0, 7, 3, 'ABBA')).toEqual({ men: 3, women: 4 });
+    expect(getGenderPattern(1, 7, 3, 'ABBA')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(2, 7, 3, 'ABBA')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(3, 7, 3, 'ABBA')).toEqual({ men: 3, women: 4 });
   });
 
-  it('startsOn is ignored for non-cyclic modes', () => {
-    expect(getGenderPattern(0, '4-3', 7, 'W')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(0, '3-4', 7, 'O')).toEqual({ men: 3, women: 4 });
-    expect(getGenderPattern(0, 'MEN', 5, 'W')).toEqual({ men: 5, women: 0 });
-    expect(getGenderPattern(0, 'WOMEN', 5, 'O')).toEqual({ men: 0, women: 5 });
+  it('same keeps a static split, including 5:1 pickup and all-open / all-women', () => {
+    expect(getGenderPattern(0, 7, 4, 'same')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(1, 7, 4, 'same')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(0, 6, 5, 'same')).toEqual({ men: 5, women: 1 });
+    expect(getGenderPattern(0, 5, 5, 'same')).toEqual({ men: 5, women: 0 });
+    expect(getGenderPattern(0, 5, 0, 'same')).toEqual({ men: 0, women: 5 });
   });
 
-  it('every mode sums to lineupSize for sizes 4–7 and both starts-on values', () => {
-    const modes = ['ABBA', 'AAB', '4-3', '3-4', 'MEN', 'WOMEN'] as const;
+  it('ABBA on 6 with 5 open mirrors 5:1 and 1:5', () => {
+    expect(getGenderPattern(0, 6, 5, 'ABBA')).toEqual({ men: 5, women: 1 });
+    expect(getGenderPattern(1, 6, 5, 'ABBA')).toEqual({ men: 1, women: 5 });
+    expect(getGenderPattern(2, 6, 5, 'ABBA')).toEqual({ men: 1, women: 5 });
+    expect(getGenderPattern(3, 6, 5, 'ABBA')).toEqual({ men: 5, women: 1 });
+  });
+
+  it('even split ignores ABBA/AAB (mirror would be identical)', () => {
+    expect(getGenderPattern(0, 6, 3, 'ABBA')).toEqual({ men: 3, women: 3 });
+    expect(getGenderPattern(1, 6, 3, 'ABBA')).toEqual({ men: 3, women: 3 });
+    expect(splitCycleApplies(6, 3)).toBe(false);
+    expect(splitCycleApplies(7, 4)).toBe(true);
+  });
+
+  it('all-open / all-women stays static for ABBA and AAB (mens/ladies night)', () => {
+    expect(getGenderPattern(0, 4, 4, 'ABBA')).toEqual({ men: 4, women: 0 });
+    expect(getGenderPattern(1, 4, 4, 'ABBA')).toEqual({ men: 4, women: 0 });
+    expect(getGenderPattern(2, 4, 4, 'AAB')).toEqual({ men: 4, women: 0 });
+    expect(getGenderPattern(2, 7, 0, 'AAB')).toEqual({ men: 0, women: 7 });
+  });
+
+  it('isSplitCycleAvailable greys out cycles that do not change the line', () => {
+    const mixed: SplitCycle[] = ['same', 'ABBA', 'AAB'];
+    for (const c of mixed) {
+      expect(isSplitCycleAvailable(7, 4, c)).toBe(true);
+      expect(isSplitCycleAvailable(6, 5, c)).toBe(true);
+    }
+    expect(isSplitCycleAvailable(6, 3, 'same')).toBe(true);
+    expect(isSplitCycleAvailable(6, 3, 'ABBA')).toBe(false);
+    expect(isSplitCycleAvailable(6, 3, 'AAB')).toBe(false);
+    expect(isSplitCycleAvailable(4, 4, 'same')).toBe(true);
+    expect(isSplitCycleAvailable(4, 4, 'AAB')).toBe(false);
+    expect(isSplitCycleAvailable(4, 4, 'ABBA')).toBe(false);
+    expect(isSplitCycleAvailable(7, 0, 'same')).toBe(true);
+    expect(isSplitCycleAvailable(7, 0, 'AAB')).toBe(false);
+    expect(isSplitCycleAvailable(7, 0, 'ABBA')).toBe(false);
+  });
+
+  it('every size, open count, and cycle sums to lineupSize', () => {
     const sizes: LineupSize[] = [4, 5, 6, 7];
-    const starts = ['O', 'W'] as const;
+    const cycles: SplitCycle[] = ['same', 'ABBA', 'AAB'];
     for (const s of sizes) {
-      for (const m of modes) {
-        for (const start of starts) {
+      for (let open = 0; open <= s; open++) {
+        for (const cycle of cycles) {
           for (let i = 0; i < 12; i++) {
-            const { men, women } = getGenderPattern(i, m, s, start);
+            const { men, women } = getGenderPattern(i, s, open, cycle);
             expect(men + women).toBe(s);
           }
         }
@@ -132,40 +172,24 @@ describe('getGenderPattern', () => {
     }
   });
 
-  it('scales open-heavy and women-heavy splits for 5v5', () => {
-    expect(getGenderPattern(0, '4-3', 5)).toEqual({ men: 3, women: 2 });
-    expect(getGenderPattern(0, '3-4', 5)).toEqual({ men: 2, women: 3 });
-    expect(getGenderPattern(0, 'MEN', 5)).toEqual({ men: 5, women: 0 });
-    expect(getGenderPattern(0, 'ABBA', 5, 'O')).toEqual({ men: 3, women: 2 });
-    expect(getGenderPattern(0, 'ABBA', 5, 'W')).toEqual({ men: 2, women: 3 });
+  it('clamps startingOpen into 0…N', () => {
+    expect(clampOpenCount(-1, 7)).toBe(0);
+    expect(clampOpenCount(9, 7)).toBe(7);
+    expect(getGenderPattern(0, 7, 99, 'same')).toEqual({ men: 7, women: 0 });
   });
 
   it('handles negative lineIndex (e.g. after history rewind) consistently', () => {
-    expect(getGenderPattern(-1, 'ABBA', 7, 'O')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(-4, 'ABBA', 7, 'O')).toEqual({ men: 4, women: 3 });
-    expect(getGenderPattern(-3, 'AAB', 7, 'O')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(-1, 7, 4, 'ABBA')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(-4, 7, 4, 'ABBA')).toEqual({ men: 4, women: 3 });
+    expect(getGenderPattern(-3, 7, 4, 'AAB')).toEqual({ men: 4, women: 3 });
   });
 });
 
 describe('getCycleLengthForMode', () => {
-  it('returns 4 for ABBA, 3 for AAB, 1 otherwise', () => {
+  it('returns 4 for ABBA, 3 for AAB, 1 for same', () => {
     expect(getCycleLengthForMode('ABBA')).toBe(4);
     expect(getCycleLengthForMode('AAB')).toBe(3);
-    expect(getCycleLengthForMode('4-3')).toBe(1);
-    expect(getCycleLengthForMode('3-4')).toBe(1);
-    expect(getCycleLengthForMode('MEN')).toBe(1);
-    expect(getCycleLengthForMode('WOMEN')).toBe(1);
-  });
-});
-
-describe('modeHasStartingPoint', () => {
-  it('is true only for cyclic modes', () => {
-    expect(modeHasStartingPoint('ABBA')).toBe(true);
-    expect(modeHasStartingPoint('AAB')).toBe(true);
-    expect(modeHasStartingPoint('4-3')).toBe(false);
-    expect(modeHasStartingPoint('3-4')).toBe(false);
-    expect(modeHasStartingPoint('MEN')).toBe(false);
-    expect(modeHasStartingPoint('WOMEN')).toBe(false);
+    expect(getCycleLengthForMode('same')).toBe(1);
   });
 });
 

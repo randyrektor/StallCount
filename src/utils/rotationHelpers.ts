@@ -1,63 +1,72 @@
-import { Player, type GenderRatioMode, type LineupSize, type StartsOn } from '../types';
+import { Player, type LineupSize, type SplitCycle } from '../types';
 import { getWrapped as getWrappedLine } from './lineRotation';
 
-/** More open players (4-3 style at 7v7). */
-const OPEN_HEAVY: Record<LineupSize, { men: number; women: number }> = {
-  7: { men: 4, women: 3 },
-  6: { men: 4, women: 2 },
-  5: { men: 3, women: 2 },
-  4: { men: 3, women: 1 },
+/** Summer-league-style default: 4 open on a 7, scaled similarly for smaller lines. */
+export const DEFAULT_STARTING_OPEN: Record<LineupSize, number> = {
+  4: 3,
+  5: 3,
+  6: 4,
+  7: 4,
 };
 
-/** More women-matching players (3-4 style at 7v7). */
-const WOMEN_HEAVY: Record<LineupSize, { men: number; women: number }> = {
-  7: { men: 3, women: 4 },
-  6: { men: 2, women: 4 },
-  5: { men: 2, women: 3 },
-  4: { men: 1, women: 3 },
-};
-
-/** True for cyclic modes (ABBA, AAB) where the "starts on" choice matters. */
-export function modeHasStartingPoint(mode: GenderRatioMode): boolean {
-  return mode === 'ABBA' || mode === 'AAB';
+export function clampOpenCount(open: number, size: LineupSize): number {
+  if (!Number.isFinite(open)) return DEFAULT_STARTING_OPEN[size];
+  return Math.max(0, Math.min(size, Math.round(open)));
 }
 
-/** Length of the rotation cycle. 4 for ABBA, 3 for AAB, 1 for fixed modes. */
-export function getCycleLengthForMode(mode: GenderRatioMode): number {
-  if (mode === 'ABBA') return 4;
-  if (mode === 'AAB') return 3;
+/** True when A and its mirror are different (not 3:3 on 6, etc.). */
+export function splitCycleApplies(size: LineupSize, startingOpen: number): boolean {
+  const open = clampOpenCount(startingOpen, size);
+  return open * 2 !== size;
+}
+
+/**
+ * Which cycle options work for this split.
+ * Even (3:3): ABBA/AAB are identical to Same.
+ * n:0 or 0:n (mens/ladies night): only Same — no gender flip.
+ */
+export function isSplitCycleAvailable(
+  size: LineupSize,
+  startingOpen: number,
+  cycle: SplitCycle
+): boolean {
+  if (cycle === 'same') return true;
+  const open = clampOpenCount(startingOpen, size);
+  if (open === 0 || open === size) return false;
+  if (open * 2 === size) return false;
+  return true;
+}
+
+/** Length of the rotation cycle. 4 for ABBA, 3 for AAB, 1 for same. */
+export function getCycleLengthForMode(cycle: SplitCycle): number {
+  if (cycle === 'ABBA') return 4;
+  if (cycle === 'AAB') return 3;
   return 1;
 }
 
 /**
- * Open (O) / Women (W) counts for the line at this point index. Always sums to
- * `lineupSize`. For cyclic modes (ABBA, AAB), `startsOn` controls which gender
- * dominates point 1 of the half; for fixed modes it's ignored.
+ * Open / women-matching counts for the line at this point.
+ * `startingOpen` is open players on the A line (first point of the cycle).
+ * B (when cycling) is the mirror: open and women swapped.
  */
 export function getGenderPattern(
   lineIndex: number,
-  mode: GenderRatioMode,
-  lineupSize: LineupSize = 7,
-  startsOn: StartsOn = 'O'
+  lineupSize: LineupSize,
+  startingOpen: number,
+  cycle: SplitCycle = 'same'
 ): { men: number; women: number } {
-  if (mode === '4-3') return OPEN_HEAVY[lineupSize];
-  if (mode === '3-4') return WOMEN_HEAVY[lineupSize];
-  if (mode === 'MEN') return { men: lineupSize, women: 0 };
-  if (mode === 'WOMEN') return { men: 0, women: lineupSize };
-
-  // For cyclic modes: position 0 of the canonical cycle is always "A" (the
-  // starting gender's heavy point); other positions follow the cycle.
-  const startingHeavy = startsOn === 'O' ? OPEN_HEAVY : WOMEN_HEAVY;
-  const oppositeHeavy = startsOn === 'O' ? WOMEN_HEAVY : OPEN_HEAVY;
-  if (mode === 'AAB') {
-    const mod = ((lineIndex % 3) + 3) % 3;
-    // A A B
-    return mod === 2 ? oppositeHeavy[lineupSize] : startingHeavy[lineupSize];
+  const open = clampOpenCount(startingOpen, lineupSize);
+  const a = { men: open, women: lineupSize - open };
+  if (cycle === 'same' || !isSplitCycleAvailable(lineupSize, open, cycle)) {
+    return a;
   }
-  // ABBA
+  const b = { men: lineupSize - open, women: open };
+  if (cycle === 'AAB') {
+    const mod = ((lineIndex % 3) + 3) % 3;
+    return mod === 2 ? b : a;
+  }
   const mod = ((lineIndex % 4) + 4) % 4;
-  // A B B A
-  return mod === 0 || mod === 3 ? startingHeavy[lineupSize] : oppositeHeavy[lineupSize];
+  return mod === 0 || mod === 3 ? a : b;
 }
 
 /**

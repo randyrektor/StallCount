@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { COLORS, THEME } from '../constants';
-import { GradientBlobs } from './ScoreBoard';
+import { AppShell } from './AppShell';
 
 interface HomeScreenProps {
   onStart: (teamName: string) => void;
@@ -9,7 +9,6 @@ interface HomeScreenProps {
 export function HomeScreen({ onStart }: HomeScreenProps) {
   const [teamName, setTeamName] = useState('');
   const [savedTeams, setSavedTeams] = useState<string[]>([]);
-  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
   useEffect(() => {
     // Load saved teams from localStorage
@@ -49,12 +48,10 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
   };
 
   return (
-    <div style={styles.container}>
-      <GradientBlobs />
-      <div style={styles.content}>
-        <div style={styles.card}>
+    <AppShell showHeader={false} width="narrow" center>
+      <div className="shell-card">
           <h1 style={styles.title}>Ultimate Frisbee</h1>
-          <h2 style={styles.subtitle}>Score Tracker</h2>
+          <p style={styles.subtitle}>Score tracker</p>
           
           <div style={styles.inputSection}>
             <label style={styles.label}>Your Team Name</label>
@@ -76,17 +73,9 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
                 {savedTeams.map((team, index) => (
                   <button
                     key={index}
-                    style={{
-                      ...styles.teamButton,
-                      ...(hoveredButton === team ? {
-                        backgroundColor: THEME.openTint,
-                        borderColor: THEME.openMuted,
-                        transform: 'translateX(4px)',
-                      } : {}),
-                    }}
+                    type="button"
+                    className={`recent-team${teamName === team ? ' is-selected' : ''}`}
                     onClick={() => handleSelectTeam(team)}
-                    onMouseEnter={() => setHoveredButton(team)}
-                    onMouseLeave={() => setHoveredButton(null)}
                   >
                     {team}
                   </button>
@@ -96,23 +85,15 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
           )}
 
           <button
-            style={{
-              ...styles.startButton,
-              ...(hoveredButton === 'start' ? {
-                backgroundColor: THEME.openStrong,
-                transform: 'translateY(-2px)',
-                boxShadow: '0 6px 16px rgba(74, 144, 226, 0.4)',
-              } : {}),
-            }}
+            type="button"
+            className="btn btn-primary"
+            style={styles.startButton}
             onClick={handleStart}
-            onMouseEnter={() => setHoveredButton('start')}
-            onMouseLeave={() => setHoveredButton(null)}
           >
-            Start Game
+            Continue
           </button>
-        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 
@@ -142,18 +123,21 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: 'blur(10px)',
   },
   title: {
-    fontSize: '36px',
-    fontWeight: 'bold',
+    fontSize: '32px',
+    fontWeight: 800,
     color: THEME.text,
     textAlign: 'center',
-    margin: '0 0 8px 0',
+    margin: '0 0 6px 0',
+    letterSpacing: '-0.03em',
   },
   subtitle: {
-    fontSize: '20px',
-    fontWeight: '500',
-    color: THEME.textSecondary,
+    fontSize: '14px',
+    fontWeight: 600,
+    color: THEME.textMuted,
     textAlign: 'center',
-    margin: '0 0 32px 0',
+    margin: '0 0 28px 0',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
   },
   inputSection: {
     marginBottom: '24px',
@@ -188,9 +172,9 @@ const styles: Record<string, React.CSSProperties> = {
   teamButton: {
     padding: '12px 16px',
     fontSize: '15px',
-    backgroundColor: THEME.openTint,
-    border: `1px solid ${THEME.openMuted}`,
-    borderRadius: '6px',
+    backgroundColor: THEME.bgInputSoft,
+    border: `1px solid ${THEME.borderSoft}`,
+    borderRadius: '8px',
     color: THEME.text,
     cursor: 'pointer',
     transition: 'all 0.2s ease',

@@ -14,15 +14,15 @@ export const commonStyles = {
 };
 
 export const playerCardStyle = {
-  padding: '8.5px 10.5px',
-  borderRadius: '3.5px',
+  padding: '10px 12px',
+  borderRadius: '8px',
   textAlign: 'center' as const,
   color: THEME.textOnAccent,
-  fontSize: '15.5px',
-  fontWeight: 500,
+  fontSize: '15px',
+  fontWeight: 600,
   background: THEME.open,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: '36px',
+  minHeight: '40px',
 };

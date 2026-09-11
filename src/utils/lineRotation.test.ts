@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getLine, getWrapped } from './lineRotation';
+import { getLine, getLineSeats, getWrapped } from './lineRotation';
 import type { Player } from '../types';
 
 const o = (name: string): Player => ({
@@ -40,5 +40,21 @@ describe('getLine', () => {
     const women = [w('M'), w('N')];
     const line = getLine(opens, women, { men: 2, women: 2 }, 1, 1);
     expect(line.map((p) => p.name)).toEqual(['B', 'C', 'M', 'N']);
+  });
+});
+
+describe('getLineSeats', () => {
+  it('pads empty gender seats to the full pattern', () => {
+    const seats = getLineSeats([o('A')], [], { men: 4, women: 3 });
+    expect(seats.map((s) => (s.kind === 'player' ? s.player.name : s.gender))).toEqual([
+      'A', 'O', 'O', 'O', 'W', 'W', 'W',
+    ]);
+  });
+
+  it('fills a complete line with no empties', () => {
+    const opens = [o('A'), o('B'), o('C'), o('D')];
+    const women = [w('M'), w('N'), w('P')];
+    const seats = getLineSeats(opens, women, { men: 4, women: 3 });
+    expect(seats.every((s) => s.kind === 'player')).toBe(true);
   });
 });

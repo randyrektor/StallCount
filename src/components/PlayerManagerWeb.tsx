@@ -1,10 +1,16 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Player } from '../types';
-import { playerCardStyle } from '../styles/common';
+import { Player, type LineupSize, type SplitCycle } from '../types';
 import { THEME } from '../constants';
+import { AppShell } from './AppShell';
+import { PlayerSeat } from './PlayerSeat';
+import {
+  clampOpenCount,
+  isSplitCycleAvailable,
+  getGenderPattern,
+} from '../utils/rotationHelpers';
 
 const COLORS = {
   background: THEME.bgPage,
@@ -23,13 +29,25 @@ const COLORS = {
 interface PlayerManagerWebProps {
   roster: Player[];
   onRosterChange: (newRoster: Player[]) => void;
-  scrollViewRef?: any;
   onLateArrival: (player: Player) => void;
   pendingPlayers: Player[];
   masterOpenQueue?: Player[];
   masterWomenQueue?: Player[];
   onForcePendingToRotation?: (player: Player) => void;
   gameStarted?: boolean;
+  setupStep?: 'roster' | 'line';
+  usingSavedRoster?: boolean;
+  onOpenScoreboard?: () => void;
+  onContinueToLine?: () => void;
+  onReady?: () => void;
+  onOpenSettings?: () => void;
+  onBack?: () => void;
+  lineupSize?: LineupSize;
+  startingOpen?: number;
+  splitCycle?: SplitCycle;
+  onLineupSizeChange?: (size: LineupSize) => void;
+  onStartingOpenChange?: (open: number) => void;
+  onSplitCycleChange?: (cycle: SplitCycle) => void;
 }
 
 function SortablePlayer({
@@ -108,38 +126,21 @@ function SortablePlayer({
         {player.number > 0 ? player.number : index + 1}
       </span>
       <div style={{ width: 8 }} /> {/* Small gap */}
-      <div
+      <PlayerSeat
         ref={setNodeRef}
+        gender={player.gender}
+        name={player.name}
+        pending={isPending}
         style={{
-          ...playerCardStyle,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: player.gender === 'O'
-            ? (isPending ? THEME.openTint : THEME.open)
-            : (isPending ? THEME.womenTint : THEME.women),
-          position: 'relative',
           opacity: isDragging ? 0.8 : 1,
           transform: CSS.Transform.toString(transform),
           transition,
           touchAction: 'none',
-          flex: 1,
         }}
         {...attributes}
         {...listeners}
       >
-        <span style={{ ...styles.playerName }}>{player.name}</span>
-        {isPending && (
-          <span style={{
-            ...styles.pendingBadge,
-            position: 'absolute',
-            left: '8px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-          }}>
-            Pending
-          </span>
-        )}
+        {isPending && <span className="player-seat-pending">Pending</span>}
         {isPending && onForcePending && isEditMode && (
           <button
             type="button"
@@ -170,7 +171,238 @@ function SortablePlayer({
         >
           ×
         </button>
+      </PlayerSeat>
+    </div>
+  );
+}
+
+function AddGhostRow({
+  gender,
+  nextNumber,
+  value,
+  inputRef,
+  onChange,
+  onSubmit,
+}: {
+  gender: 'O' | 'W';
+  nextNumber: number;
+  value: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  const genderLabel = gender === 'O' ? 'Open' : 'Women';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}>
+      <span style={styles.playerNumber}>{nextNumber}</span>
+      <div style={{ width: 8 }} />
+      <label
+        className={`player-seat player-seat--empty player-seat--${gender === 'O' ? 'open' : 'women'} player-seat-add`}
+      >
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+          placeholder={`Add ${genderLabel.toLowerCase()}`}
+          aria-label={`Add ${genderLabel.toLowerCase()} player`}
+        />
+      </label>
+    </div>
+  );
+}
+
+function GenderRosterColumn({
+  gender,
+  title,
+  players,
+  firstCount,
+  showLinePreview,
+  isEditMode,
+  pendingPlayers,
+  onDelete,
+  onLongPress,
+  onForcePending,
+  addValue,
+  inputRef,
+  onAddChange,
+  onAddSubmit,
+}: {
+  gender: 'O' | 'W';
+  title: string;
+  players: Player[];
+  firstCount: number;
+  showLinePreview: boolean;
+  isEditMode: boolean;
+  pendingPlayers: Player[];
+  onDelete: (player: Player) => void;
+  onLongPress: () => void;
+  onForcePending?: (player: Player) => void;
+  addValue: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onAddChange: (value: string) => void;
+  onAddSubmit: () => void;
+}) {
+  const first = players.slice(0, firstCount);
+  const rest = players.slice(firstCount);
+  const emptyCount = showLinePreview ? Math.max(0, firstCount - players.length) : 0;
+  const isPending = (player: Player) => pendingPlayers.some((p) => p.uuid === player.uuid);
+  const queue = showLinePreview ? first : players;
+
+  return (
+    <div style={styles.rosterColumn}>
+      <h3 style={styles.rosterTitle}>{title}</h3>
+      <SortableContext items={players.map((p) => p.uuid)} strategy={verticalListSortingStrategy}>
+        {showLinePreview && <div className="roster-section-label">First line</div>}
+        {queue.map((player, index) => (
+          <SortablePlayer
+            key={player.uuid}
+            player={player}
+            index={index}
+            isEditMode={isEditMode}
+            onDelete={onDelete}
+            isPending={isPending(player)}
+            onLongPress={onLongPress}
+            onForcePending={onForcePending}
+          />
+        ))}
+        {Array.from({ length: emptyCount }, (_, i) => (
+          <div key={`empty-${gender}-${i}`} style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ ...styles.playerNumber, opacity: 0.4 }}>{players.length + i + 1}</span>
+            <div style={{ width: 8 }} />
+            <PlayerSeat gender={gender} empty />
+          </div>
+        ))}
+        <div className={showLinePreview ? 'roster-section-rest' : undefined}>
+          {showLinePreview && rest.map((player, index) => (
+            <SortablePlayer
+              key={player.uuid}
+              player={player}
+              index={firstCount + index}
+              isEditMode={isEditMode}
+              onDelete={onDelete}
+              isPending={isPending(player)}
+              onLongPress={onLongPress}
+              onForcePending={onForcePending}
+            />
+          ))}
+          <AddGhostRow
+            gender={gender}
+            nextNumber={players.length + 1}
+            value={addValue}
+            inputRef={inputRef}
+            onChange={onAddChange}
+            onSubmit={onAddSubmit}
+          />
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
+
+const LINEUP_SIZE_OPTIONS: LineupSize[] = [4, 5, 6, 7];
+const CYCLE_OPTIONS: { label: string; value: SplitCycle }[] = [
+  { label: 'Same', value: 'same' },
+  { label: 'ABBA', value: 'ABBA' },
+  { label: 'AAB', value: 'AAB' },
+];
+
+function LineSetup({
+  lineupSize,
+  startingOpen,
+  splitCycle,
+  onLineupSizeChange,
+  onStartingOpenChange,
+  onSplitCycleChange,
+}: {
+  lineupSize: LineupSize;
+  startingOpen: number;
+  splitCycle: SplitCycle;
+  onLineupSizeChange: (size: LineupSize) => void;
+  onStartingOpenChange: (open: number) => void;
+  onSplitCycleChange?: (cycle: SplitCycle) => void;
+}) {
+  const openCount = clampOpenCount(startingOpen, lineupSize);
+  const womenCount = lineupSize - openCount;
+
+  const setSize = (n: LineupSize) => {
+    const open = clampOpenCount(startingOpen, n);
+    onLineupSizeChange(n);
+    onStartingOpenChange(open);
+    if (onSplitCycleChange && !isSplitCycleAvailable(n, open, splitCycle)) {
+      onSplitCycleChange('same');
+    }
+  };
+
+  return (
+    <div className="line-setup">
+      <div className="line-setup-group">
+        <span className="line-setup-label">Players per point</span>
+        <div className="line-setup-pills">
+          {LINEUP_SIZE_OPTIONS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`line-setup-pill${lineupSize === n ? ' is-active' : ''}`}
+              onClick={() => setSize(n)}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
+      <div className="line-setup-group">
+        <span className="line-setup-label">Starting split</span>
+        <div className="line-setup-split">
+          <button
+            type="button"
+            className="line-setup-pill line-setup-pill--open"
+            disabled={openCount >= lineupSize}
+            aria-label="+ Open"
+            onClick={() => onStartingOpenChange(Math.min(lineupSize, openCount + 1))}
+          >
+            + Open
+          </button>
+          <span className="line-setup-ratio">{openCount}:{womenCount}</span>
+          <button
+            type="button"
+            className="line-setup-pill line-setup-pill--women"
+            disabled={openCount <= 0}
+            aria-label="+ Women"
+            onClick={() => onStartingOpenChange(Math.max(0, openCount - 1))}
+          >
+            + Women
+          </button>
+        </div>
+      </div>
+      {onSplitCycleChange && (
+        <div className="line-setup-group">
+          <span className="line-setup-label">Cycle</span>
+          <div className="line-setup-pills">
+            {CYCLE_OPTIONS.map((opt) => {
+              const locked = !isSplitCycleAvailable(lineupSize, openCount, opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`line-setup-pill${splitCycle === opt.value ? ' is-active' : ''}`}
+                  disabled={locked}
+                  onClick={() => {
+                    if (!locked) onSplitCycleChange(opt.value);
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -184,21 +416,29 @@ export function PlayerManagerWeb({
   masterWomenQueue = [],
   onForcePendingToRotation,
   gameStarted = false,
+  setupStep = 'roster',
+  usingSavedRoster = false,
+  onOpenScoreboard,
+  onContinueToLine,
+  onReady,
+  onOpenSettings,
+  onBack,
+  lineupSize = 7,
+  startingOpen = 4,
+  splitCycle = 'ABBA',
+  onLineupSizeChange,
+  onStartingOpenChange,
+  onSplitCycleChange,
 }: PlayerManagerWebProps) {
   const [isEditMode, setIsEditMode] = useState(false);
-  const [newPlayer, setNewPlayer] = useState<{ name: string; gender: 'O' | 'W' }>({ name: '', gender: 'O' });
-  const inputRef = useRef<HTMLInputElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartY, setDragStartY] = useState(0);
-  const [panelHeight, setPanelHeight] = useState(0);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [openDraft, setOpenDraft] = useState('');
+  const [womenDraft, setWomenDraft] = useState('');
+  const openInputRef = useRef<HTMLInputElement>(null);
+  const womenInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { delay: 200, tolerance: 10 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 10 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { distance: 8 } })
   );
 
   // List order = master rotation queue first (source of truth after subs), then roster-only extras (e.g. pending).
@@ -218,79 +458,6 @@ export function PlayerManagerWeb({
   const pendingOpenPlayers = useMemo(() => pendingPlayers.filter(p => p.gender === 'O'), [pendingPlayers]);
   const pendingWomenPlayers = useMemo(() => pendingPlayers.filter(p => p.gender === 'W'), [pendingPlayers]);
 
-  // Measure content height when component mounts or content changes
-  useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight);
-    }
-  }, [roster, pendingPlayers, isEditMode]);
-
-  // Handle drag start
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    setIsDragging(true);
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    setDragStartY(clientY);
-  };
-
-  // Handle drag move
-  const handleDragMove = (e: MouseEvent | TouchEvent) => {
-    if (!isDragging || !panelRef.current) return;
-    
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const deltaY = dragStartY - clientY;
-    const newHeight = Math.max(24, Math.min(contentHeight + 24, panelHeight + deltaY)); // 24px for handle only
-    
-    setPanelHeight(newHeight);
-    setDragStartY(clientY);
-  };
-
-  // Handle drag end
-  const handleDragEnd = () => {
-    if (!isDragging) return;
-    
-    setIsDragging(false);
-    const threshold = (contentHeight + 24) * 0.3; // Account for handle only
-    if (panelHeight > threshold) {
-      setIsVisible(true);
-      setPanelHeight(contentHeight + 24); // 24px handle + content
-    } else {
-      setIsVisible(false);
-      setPanelHeight(24); // Just the handle height
-    }
-  };
-
-  // Add event listeners for drag
-  useEffect(() => {
-    if (isDragging) {
-      const handleMouseMove = (e: MouseEvent) => handleDragMove(e);
-      const handleTouchMove = (e: TouchEvent) => handleDragMove(e);
-      const handleMouseUp = () => handleDragEnd();
-      const handleTouchEnd = () => handleDragEnd();
-
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchend', handleTouchEnd);
-
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('touchend', handleTouchEnd);
-      };
-    }
-  }, [isDragging, panelHeight, contentHeight]);
-
-  // Update panel height when visibility changes
-  useEffect(() => {
-    if (isVisible) {
-      setPanelHeight(contentHeight + 24); // 24px handle + content
-    } else {
-      setPanelHeight(24); // Just the handle height
-    }
-  }, [isVisible, contentHeight]);
-
-  // Consolidated drag end handler for player sorting
   function handlePlayerDragEnd(event: any, gender: 'O' | 'W') {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -336,228 +503,224 @@ export function PlayerManagerWeb({
     }));
   }
 
-  function handleAddPlayer() {
-    if (newPlayer.name.trim()) {
-      const newPlayerWithNumber = {
-        ...newPlayer,
-        uuid: crypto.randomUUID(),
-        number: 0, 
-      };
-      onLateArrival(newPlayerWithNumber);
-      setNewPlayer({ name: '', gender: 'O' });
-      inputRef.current?.focus();
+  function handleAddPlayer(gender: 'O' | 'W') {
+    const name = (gender === 'O' ? openDraft : womenDraft).trim();
+    if (!name) return;
+    onLateArrival({
+      name,
+      gender,
+      uuid: crypto.randomUUID(),
+      number: 0,
+    });
+    if (gender === 'O') {
+      setOpenDraft('');
+      openInputRef.current?.focus();
+    } else {
+      setWomenDraft('');
+      womenInputRef.current?.focus();
     }
   }
 
-  // Handler to enter edit mode from long-press
   const handleLongPress = () => setIsEditMode(true);
+  const isRosterStep = !gameStarted && setupStep === 'roster';
+  const isLineStep = !gameStarted && setupStep === 'line';
 
-  // Handler to exit edit mode
-  const handleDone = () => setIsEditMode(false);
+  const firstPattern = useMemo(
+    () => getGenderPattern(0, lineupSize, startingOpen, splitCycle),
+    [lineupSize, startingOpen, splitCycle]
+  );
+
+  const shellTitle = gameStarted ? 'Roster' : isLineStep ? 'This game' : 'Roster';
 
   return (
-    <div style={styles.slidePanelContainer}>
-      {isVisible && (
-        <div
-          style={styles.backdrop}
-          onClick={() => setIsVisible(false)}
-        />
-      )}
-      <div 
-        ref={panelRef}
-        style={{
-          ...styles.slidePanel,
-          height: `${Math.max(24, panelHeight)}px`, // Always show at least the drag handle
-          zIndex: 1001, // Ensure panel is above the backdrop
-        }}
-      >
-        <div 
-          style={{
-            ...styles.dragHandle,
-            backgroundColor: isVisible ? '#1d1d1d' : '#2d2d2d',
-          }}
-          onMouseDown={handleDragStart}
-          onTouchStart={handleDragStart}
-          onClick={() => setIsVisible(v => !v)}
-        >
-          <div style={styles.handleBar} />
-        </div>
-        {/* Always render content for measurement, but hide visually when closed */}
-        <div 
-          ref={contentRef} 
-          style={{
-            ...styles.panelContent,
-            opacity: isVisible ? 1 : 0,
-            visibility: isVisible ? 'visible' : 'hidden',
-            pointerEvents: isVisible ? 'auto' : 'none',
-            transition: isDragging ? 'none' : 'opacity 0.3s ease-in-out, visibility 0.3s',
-          }}
-        >
-          {/* Add player controls (input + gender row, then full-width button) */}
-          {pendingPlayers.length > 0 && (
+    <AppShell
+      title={shellTitle}
+      left={
+        <>
+          {onBack && !gameStarted && (
+            <button type="button" className="btn btn-ghost" onClick={onBack}>
+              ← Back
+            </button>
+          )}
+          {gameStarted && (
+            <>
+              <button type="button" className="btn btn-ghost" onClick={onOpenScoreboard}>
+                Scoreboard
+              </button>
+              {onOpenSettings && (
+                <button type="button" className="btn btn-ghost" onClick={onOpenSettings}>
+                  Settings
+                </button>
+              )}
+            </>
+          )}
+        </>
+      }
+      right={
+        <>
+          {isEditMode && (
+            <button type="button" className="btn btn-primary" onClick={() => setIsEditMode(false)}>
+              Done
+            </button>
+          )}
+        </>
+      }
+    >
+          {gameStarted && pendingPlayers.length > 0 && (
             <div style={styles.pendingExplainer}>
               <strong style={{ color: COLORS.text }}>Pending</strong>
               <span style={{ color: COLORS.textSecondary, fontSize: 12 }}>
                 {' '}
-                — not in rotation yet. They'll join after a point, unless "Add now" puts them in immediately without changing who's on the field.
+                — their number would be on this point, so they wait. After this point they take that slot (e.g. field is 4-5-6-1, new #7 stays pending, next rotation is 4-5-6-7).
               </span>
             </div>
           )}
 
-          <div style={styles.addPlayerSectionRow}>
-            <div style={styles.inputGenderRow}>
-              <input
-                ref={inputRef}
-                style={{ ...styles.input, minWidth: 0, flex: 1 }}
-                value={newPlayer.name}
-                onChange={e => setNewPlayer(prev => ({ ...prev, name: e.target.value }))}
-                onKeyPress={(e) => e.key === 'Enter' && handleAddPlayer()}
-                placeholder="Enter player name..."
+          {isRosterStep && (
+            <p style={styles.rosterHint}>
+              {usingSavedRoster
+                ? 'Default roster — add or reorder. You can add more later.'
+                : 'Add names. You can add more later.'}
+            </p>
+          )}
+
+          {isLineStep && onLineupSizeChange && onStartingOpenChange && (
+            <>
+              <p style={styles.rosterHint}>Who’s on the field this game. Lists below are the first point.</p>
+              <LineSetup
+                lineupSize={lineupSize}
+                startingOpen={startingOpen}
+                splitCycle={splitCycle}
+                onLineupSizeChange={onLineupSizeChange}
+                onStartingOpenChange={onStartingOpenChange}
+                onSplitCycleChange={onSplitCycleChange}
               />
-              <div style={styles.genderButtonGroup}>
-                <button
-                  style={{ ...styles.genderButton, ...(newPlayer.gender === 'O' ? styles.genderButtonActiveOpen : {}) }}
-                  onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'O' }))}
-                  aria-label="Open"
-                >
-                  Open
-                </button>
-                <button
-                  style={{ ...styles.genderButton, ...(newPlayer.gender === 'W' ? styles.genderButtonActiveWomen : {}) }}
-                  onClick={() => setNewPlayer(prev => ({ ...prev, gender: 'W' }))}
-                  aria-label="Women"
-                >
-                  Women
-                </button>
-              </div>
-            </div>
-            <div style={{ width: '100%' }}>
-              <button style={styles.addPlayerButtonFull} onClick={handleAddPlayer}>
-                Add Player
-              </button>
-            </div>
-          </div>
+            </>
+          )}
 
-          <p style={styles.rosterHint}>
-            {gameStarted
-              ? "Drag to reorder and delete to remove. After Start Game, new players are pending until the next point so the current line does not change."
-              : "Drag to reorder and delete to remove. Add late arrivals here — they join the rotation until you tap Start Game."}
-          </p>
-
-          {/* Done row only takes space in edit mode so hint sits closer to the roster */}
-          <div
-            style={{
-              ...styles.doneButtonRow,
-              ...(!isEditMode
-                ? {
-                    height: 0,
-                    minHeight: 0,
-                    marginBottom: 0,
-                    overflow: 'hidden',
-                  }
-                : {}),
-            }}
-          >
-            <button
-              style={{
-                ...styles.doneButton,
-                opacity: isEditMode ? 1 : 0,
-                pointerEvents: isEditMode ? 'auto' : 'none',
-                transition: 'opacity 0.2s',
-              }}
-              onClick={handleDone}
-              aria-label="Done Editing"
-            >
-              Done
-            </button>
-          </div>
+          {gameStarted && (
+            <p style={styles.rosterHint}>Hold a name to remove. Subs are on the scoreboard.</p>
+          )}
 
           <div style={styles.rosterContainer}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handlePlayerDragStart} onDragEnd={(e) => handlePlayerDragEnd(e, 'O')}>
-              <div style={styles.rosterColumn}>
-                <h3 style={styles.rosterTitle}>Open Players</h3>
-                <SortableContext items={openPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
-                  {openPlayers.map((player, index) => (
-                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingOpenPlayers.some(p => p.uuid === player.uuid)} onLongPress={handleLongPress} onForcePending={onForcePendingToRotation} />
-                  ))}
-                </SortableContext>
-              </div>
+              <GenderRosterColumn
+                gender="O"
+                title="Open"
+                players={openPlayers}
+                firstCount={firstPattern.men}
+                showLinePreview={isLineStep}
+                isEditMode={isEditMode}
+                pendingPlayers={pendingOpenPlayers}
+                onDelete={handleDeletePlayer}
+                onLongPress={handleLongPress}
+                onForcePending={onForcePendingToRotation}
+                addValue={openDraft}
+                inputRef={openInputRef}
+                onAddChange={setOpenDraft}
+                onAddSubmit={() => handleAddPlayer('O')}
+              />
             </DndContext>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handlePlayerDragStart} onDragEnd={(e) => handlePlayerDragEnd(e, 'W')}>
-              <div style={styles.rosterColumn}>
-                <h3 style={styles.rosterTitle}>Women Players</h3>
-                <SortableContext items={womenPlayers.map(p => p.uuid)} strategy={verticalListSortingStrategy}>
-                  {womenPlayers.map((player, index) => (
-                    <SortablePlayer key={player.uuid} player={player} index={index} isEditMode={isEditMode} onDelete={handleDeletePlayer} isPending={pendingWomenPlayers.some(p => p.uuid === player.uuid)} onLongPress={handleLongPress} onForcePending={onForcePendingToRotation} />
-                  ))}
-                </SortableContext>
-              </div>
+              <GenderRosterColumn
+                gender="W"
+                title="Women"
+                players={womenPlayers}
+                firstCount={firstPattern.women}
+                showLinePreview={isLineStep}
+                isEditMode={isEditMode}
+                pendingPlayers={pendingWomenPlayers}
+                onDelete={handleDeletePlayer}
+                onLongPress={handleLongPress}
+                onForcePending={onForcePendingToRotation}
+                addValue={womenDraft}
+                inputRef={womenInputRef}
+                onAddChange={setWomenDraft}
+                onAddSubmit={() => handleAddPlayer('W')}
+              />
             </DndContext>
           </div>
-        </div>
-      </div>
-    </div>
+
+          {isRosterStep && (
+            <button type="button" className="btn btn-primary kickoff-footer" onClick={onContinueToLine}>
+              Continue
+            </button>
+          )}
+          {isLineStep && (
+            <button type="button" className="btn btn-primary kickoff-footer" onClick={onReady}>
+              Ready
+            </button>
+          )}
+    </AppShell>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  slidePanelContainer: {
-    position: 'fixed',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    pointerEvents: 'none',
-    paddingBottom: 'env(safe-area-inset-bottom)',
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
+    backgroundColor: THEME.bgApp,
   },
-  slidePanel: {
-    position: 'relative',
-    backgroundColor: THEME.bgElevated,
-    borderTopLeftRadius: '16px',
-    borderTopRightRadius: '16px',
-    overflow: 'hidden',
-    transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    pointerEvents: 'auto',
-    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
-    maxHeight: 'calc(100dvh - env(safe-area-inset-bottom))',
-    width: '100%',
-  },
-  dragHandle: {
-    height: '24px',
+  header: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'grab',
-    backgroundColor: THEME.bgHandle,
-    borderTopLeftRadius: '16px',
-    borderTopRightRadius: '16px',
-    userSelect: 'none',
-    touchAction: 'none',
+    justifyContent: 'space-between',
+    gap: '12px',
+    padding: '12px 16px',
+    borderBottom: `1px solid ${COLORS.border}`,
+    flexShrink: 0,
   },
-  handleBar: {
-    width: '40px',
-    height: '4px',
-    backgroundColor: COLORS.handle,
-    borderRadius: '2px',
+  headerLeft: {
+    display: 'flex',
+    gap: '8px',
+    flex: '1 1 0',
   },
-  panelContent: {
-    padding: '0px 20px 20px 20px',
-    maxHeight: 'calc(100dvh - 24px - env(safe-area-inset-bottom))',
+  headerRight: {
+    display: 'flex',
+    gap: '8px',
+    flex: '1 1 0',
+    justifyContent: 'flex-end',
+  },
+  headerTitle: {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: 700,
+    color: COLORS.text,
+    textAlign: 'center',
+    flex: '0 1 auto',
+  },
+  headerButton: {
+    backgroundColor: THEME.bgInput,
+    color: COLORS.text,
+    border: `1px solid ${COLORS.border}`,
+    padding: '10px 16px',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  headerButtonActive: {
+    backgroundColor: COLORS.add,
+    color: THEME.textOnAccent,
+    borderColor: COLORS.add,
+  },
+  kickoffButton: {
+    backgroundColor: THEME.open,
+    color: THEME.textOnAccent,
+    border: 'none',
+    padding: '10px 18px',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: THEME.shadowCta,
+  },
+  pageBody: {
+    flex: 1,
     overflowY: 'auto',
-    overflowX: 'hidden',
-    backgroundColor: THEME.bgApp,
+    padding: '16px',
     WebkitOverflowScrolling: 'touch',
-    width: '100%',
-    boxSizing: 'border-box',
-  },
-  managerWrapper: {
-    overflow: 'hidden',
-    transition: 'height 0.3s ease-in-out, opacity 0.3s ease-in-out',
-  },
-  managerContent: {
-    backgroundColor: THEME.bgPanelStrong,
-    borderRadius: '12px',
-    padding: '20px',
   },
   addPlayerSection: {
     display: 'flex',
@@ -627,20 +790,20 @@ const styles: Record<string, React.CSSProperties> = {
   },
   rosterContainer: {
     display: 'flex',
-    gap: '12px',
+    gap: '16px',
     backgroundColor: THEME.bgPanel,
     borderRadius: '12px',
-    padding: '12px 20px 20px 20px',
+    padding: '12px 16px 20px 16px',
     border: `1px solid ${COLORS.border}`,
     width: '100%',
     boxSizing: 'border-box',
-    overflowX: 'hidden',
+    overflow: 'visible',
     flexWrap: 'nowrap',
   },
   rosterColumn: {
     flex: 1,
     minWidth: 0,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   rosterTitle: {
     color: COLORS.text,
@@ -719,19 +882,6 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '10px',
     width: '100%',
   },
-  addPlayerButton: {
-    width: '100%',
-    padding: '12px 0',
-    backgroundColor: COLORS.add,
-    color: THEME.textOnAccent,
-    border: 'none',
-    borderRadius: '6px',
-    fontWeight: '600',
-    fontSize: '16px',
-    cursor: 'pointer',
-    marginTop: '2px',
-    transition: 'background 0.2s',
-  },
   toggleButton: {
     padding: '10px 20px',
     backgroundColor: COLORS.add,
@@ -753,6 +903,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   playerNumber: {
     minWidth: 28,
+    flexShrink: 0,
     height: 32,
     display: 'flex',
     alignItems: 'center',
@@ -772,20 +923,34 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: THEME.bgPanel,
     borderRadius: '12px',
     padding: '10px',
-    marginBottom: '10px',
+    marginBottom: '12px',
     border: `1px solid ${COLORS.border}`,
   },
   genderButtonGroup: {
     display: 'flex',
-    gap: '10px',
+    gap: '6px',
+    flexShrink: 0,
   },
   inputGenderRow: {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: '10px',
+    gap: '8px',
     width: '100%',
-    marginBottom: '10px',
+    marginBottom: 0,
+    flexWrap: 'wrap',
+  },
+  addPlayerButton: {
+    flex: '0 0 auto',
+    padding: '10px 18px',
+    backgroundColor: THEME.open,
+    color: THEME.textOnAccent,
+    border: 'none',
+    borderRadius: '8px',
+    fontWeight: 700,
+    fontSize: '14px',
+    cursor: 'pointer',
+    boxShadow: THEME.shadowCta,
   },
   addPlayerButtonFull: {
     width: '100%',
@@ -834,10 +999,17 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'background 0.15s',
   },
   rosterHint: {
-    margin: '0 0 4px 0',
-    fontSize: '12px',
+    margin: '0 0 10px 0',
+    fontSize: '13px',
     lineHeight: 1.45,
     color: COLORS.textSecondary,
+  },
+  orderHeading: {
+    margin: '0 0 10px 0',
+    fontSize: '15px',
+    fontWeight: 700,
+    letterSpacing: '-0.02em',
+    color: COLORS.text,
   },
   pendingExplainer: {
     marginBottom: '10px',

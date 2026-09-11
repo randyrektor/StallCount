@@ -1,9 +1,8 @@
-import type { Player, GenderRatioMode, LineupSize, StartsOn } from '../types';
+import type { Player, LineupSize, SplitCycle } from '../types';
 import { getLine } from './lineRotation';
 import {
   getGenderPattern,
   removePlayerFromRotationQueue,
-  rawIndexAfterReorderPreservingLineSlice,
 } from './rotationHelpers';
 
 /** Matches scoreboard late-arrival check: would appending this player bump someone off the current line? */
@@ -13,16 +12,16 @@ export function lateArrivalWouldDisplaceCurrentLine(params: {
   openIndex: number;
   womenIndex: number;
   lineIndex: number;
-  genderRatioMode: GenderRatioMode;
+  startingOpen: number;
   lineupSize: LineupSize;
-  startsOn?: StartsOn;
+  splitCycle?: SplitCycle;
   newPlayer: Player;
 }): boolean {
   const pattern = getGenderPattern(
     params.lineIndex,
-    params.genderRatioMode,
     params.lineupSize,
-    params.startsOn ?? 'O'
+    params.startingOpen,
+    params.splitCycle ?? 'same'
   );
   const normalizedOpenIndex =
     params.masterOpenQueue.length > 0
@@ -115,11 +114,6 @@ export function applyDragReorderToMasterQueues(params: {
   openIndex: number;
   womenIndex: number;
   newRosterActivePlayers: Player[];
-  /** Current line open slice (same order as on the scoreboard) before reorder */
-  desiredOpenLineSlice: Player[];
-  desiredWomenLineSlice: Player[];
-  openSliceLen: number;
-  womenSliceLen: number;
 }): {
   masterOpenQueue: Player[];
   masterWomenQueue: Player[];
@@ -128,23 +122,13 @@ export function applyDragReorderToMasterQueues(params: {
 } {
   const proposedOpen = params.newRosterActivePlayers.filter((p) => p.gender === 'O');
   const proposedWomen = params.newRosterActivePlayers.filter((p) => p.gender === 'W');
+  // Roster order is the rotation from the top. That is the only way to replace
+  // who is on the current line (late arrivals / pending never bump the field).
   return {
     masterOpenQueue: proposedOpen,
     masterWomenQueue: proposedWomen,
-    openIndex: rawIndexAfterReorderPreservingLineSlice(
-      params.openIndex,
-      params.masterOpenQueue,
-      proposedOpen,
-      params.desiredOpenLineSlice,
-      params.openSliceLen
-    ),
-    womenIndex: rawIndexAfterReorderPreservingLineSlice(
-      params.womenIndex,
-      params.masterWomenQueue,
-      proposedWomen,
-      params.desiredWomenLineSlice,
-      params.womenSliceLen
-    ),
+    openIndex: 0,
+    womenIndex: 0,
   };
 }
 
@@ -160,15 +144,15 @@ export function partitionPendingForLineChange(params: {
   openIndex: number;
   womenIndex: number;
   lineIndex: number;
-  genderRatioMode: GenderRatioMode;
+  startingOpen: number;
   lineupSize: LineupSize;
-  startsOn?: StartsOn;
+  splitCycle?: SplitCycle;
 }): { activate: Player[]; stillPending: Player[] } {
   const pattern = getGenderPattern(
     params.lineIndex,
-    params.genderRatioMode,
     params.lineupSize,
-    params.startsOn ?? 'O'
+    params.startingOpen,
+    params.splitCycle ?? 'same'
   );
   // Use raw rotation indices (getWrapped already wraps). Normalizing against the
   // old queue length would mis-detect the window after a simulated append.

@@ -35,7 +35,7 @@ describe('lateArrivalWouldDisplaceCurrentLine', () => {
   it('appended open can change who is in the window → displace (rotation not at 0)', () => {
     const opens = [o('A'), o('B'), o('C'), o('D')];
     const women = [w('M'), w('N'), w('P')];
-    const pattern = getGenderPattern(0, 'ABBA', 7);
+    const pattern = getGenderPattern(0, 7, 4, 'ABBA');
     expect(pattern.men).toBe(4);
     // With openIndex 0, a 5th open at the end is still outside the first 4 slots — no bump.
     expect(
@@ -45,7 +45,8 @@ describe('lateArrivalWouldDisplaceCurrentLine', () => {
         openIndex: 0,
         womenIndex: 0,
         lineIndex: 0,
-        genderRatioMode: 'ABBA',
+        startingOpen: 4,
+        splitCycle: 'ABBA',
         lineupSize: 7,
         newPlayer: o('Late'),
       })
@@ -59,7 +60,8 @@ describe('lateArrivalWouldDisplaceCurrentLine', () => {
         openIndex: 1,
         womenIndex: 0,
         lineIndex: 0,
-        genderRatioMode: 'ABBA',
+        startingOpen: 4,
+        splitCycle: 'ABBA',
         lineupSize: 7,
         newPlayer: o('Late'),
       })
@@ -75,7 +77,8 @@ describe('lateArrivalWouldDisplaceCurrentLine', () => {
       openIndex: 0,
       womenIndex: 0,
       lineIndex: 0,
-      genderRatioMode: 'ABBA',
+      startingOpen: 4,
+      splitCycle: 'ABBA',
       lineupSize: 7,
       newPlayer: o('Fourth'),
     });
@@ -127,57 +130,66 @@ describe('applyQueueRemovalsForRosterChange', () => {
 });
 
 describe('applyDragReorderToMasterQueues', () => {
-  it('reorders open list but keeps same player at rotation head', () => {
+  it('reorders the queue and puts the new top of the list on the current line', () => {
     const oldO = [o('A'), o('B'), o('C')];
     const oldW = [w('M')];
     const newOrder = [oldO[2], oldO[0], oldO[1], ...oldW];
-    const desiredOpen = getWrapped(oldO, 1, 2);
-    const desiredW = getWrapped(oldW, 0, 1);
     const r = applyDragReorderToMasterQueues({
       masterOpenQueue: oldO,
       masterWomenQueue: oldW,
       openIndex: 1,
       womenIndex: 0,
       newRosterActivePlayers: newOrder,
-      desiredOpenLineSlice: desiredOpen,
-      desiredWomenLineSlice: desiredW,
-      openSliceLen: 2,
-      womenSliceLen: 1,
     });
     expect(r.masterOpenQueue.map((p) => p.name)).toEqual(['C', 'A', 'B']);
-    const L = r.masterOpenQueue.length;
-    expect(r.masterOpenQueue[((r.openIndex % L) + L) % L].name).toBe('B');
+    expect(r.openIndex).toBe(0);
+    expect(r.masterOpenQueue[0].name).toBe('C');
   });
 
-  it('swapping two bench opens keeps current 4-open line identical', () => {
+  it('swapping two bench opens with index 0 keeps the first 4 on the line', () => {
     const oldO = [o('A'), o('B'), o('C'), o('D'), o('E'), o('F'), o('G')];
     const oldW = [w('M'), w('N'), w('P')];
     const newOrder = [
       ...[oldO[0], oldO[1], oldO[2], oldO[3], oldO[5], oldO[4], oldO[6]],
       ...oldW,
     ];
-    const desiredOpen = getWrapped(oldO, 0, 4);
-    const desiredW = getWrapped(oldW, 0, 3);
     const r = applyDragReorderToMasterQueues({
       masterOpenQueue: oldO,
       masterWomenQueue: oldW,
       openIndex: 0,
       womenIndex: 0,
       newRosterActivePlayers: newOrder,
-      desiredOpenLineSlice: desiredOpen,
-      desiredWomenLineSlice: desiredW,
-      openSliceLen: 4,
-      womenSliceLen: 3,
     });
     const beforeLine = getLine(oldO, oldW, { men: 4, women: 3 }, 0, 0);
     const afterLine = getLine(
       r.masterOpenQueue,
       r.masterWomenQueue,
       { men: 4, women: 3 },
-      r.openIndex % r.masterOpenQueue.length,
-      r.womenIndex % r.masterWomenQueue.length
+      r.openIndex,
+      r.womenIndex
     );
     expect(beforeLine.map((p) => p.uuid)).toEqual(afterLine.map((p) => p.uuid));
+  });
+
+  it('dragging someone onto the front of the list puts them on the current line', () => {
+    const oldO = [o('A'), o('B'), o('C'), o('D'), o('E')];
+    const oldW = [w('M'), w('N'), w('P')];
+    const r = applyDragReorderToMasterQueues({
+      masterOpenQueue: oldO,
+      masterWomenQueue: oldW,
+      openIndex: 2,
+      womenIndex: 0,
+      newRosterActivePlayers: [oldO[4], oldO[0], oldO[1], oldO[2], oldO[3], ...oldW],
+    });
+    const afterLine = getLine(
+      r.masterOpenQueue,
+      r.masterWomenQueue,
+      { men: 4, women: 3 },
+      r.openIndex,
+      r.womenIndex
+    );
+    expect(afterLine[0].name).toBe('E');
+    expect(r.openIndex).toBe(0);
   });
 });
 
@@ -185,7 +197,7 @@ describe('applyPendingActivationsToQueues', () => {
   it('appends at end; same indices keep same current line when new player is off the field', () => {
     const opens = [o('A'), o('B'), o('C'), o('D')];
     const women = [w('M'), w('N'), w('P')];
-    const pattern = getGenderPattern(0, 'ABBA', 7);
+    const pattern = getGenderPattern(0, 7, 4, 'ABBA');
     const oi = 0;
     const wi = 0;
     const before = getLine(opens, women, pattern, oi, wi);
@@ -208,7 +220,8 @@ describe('partitionPendingForLineChange', () => {
       openIndex: 0,
       womenIndex: 0,
       lineIndex: 0,
-      genderRatioMode: 'ABBA',
+      startingOpen: 4,
+      splitCycle: 'ABBA',
       lineupSize: 7,
     });
     expect(activate).toEqual([]);
@@ -226,7 +239,8 @@ describe('partitionPendingForLineChange', () => {
       openIndex: 1,
       womenIndex: 0,
       lineIndex: 0,
-      genderRatioMode: 'ABBA',
+      startingOpen: 4,
+      splitCycle: 'ABBA',
       lineupSize: 7,
     });
     expect(activate).toEqual([]);
@@ -262,13 +276,13 @@ describe('roster manager scenarios (integration)', () => {
     openQ = rm.masterOpenQueue;
     raw = rm.openIndex;
     wi = rm.womenIndex;
-    const pattern = getGenderPattern(0, '4-3', 7);
+    const pattern = getGenderPattern(0, 7, 4, 'same');
     const line = getLine(openQ, wq, pattern, raw % openQ.length, wi % wq.length);
     expect(line.map((p) => p.name)).toEqual(['A', 'C', 'D', 'M', 'N', 'P']);
   });
 
   it('score advance then sub: rotation index unchanged by sub; line reflects swap', () => {
-    const pattern = getGenderPattern(0, '4-3', 7);
+    const pattern = getGenderPattern(0, 7, 4, 'same');
     let openQ = [o('A'), o('B'), o('C'), o('D'), o('E')];
     const wq = [w('M'), w('N'), w('P')];
     let oi = pattern.men;
@@ -293,18 +307,12 @@ describe('roster manager scenarios (integration)', () => {
   it('drag reorder + removal: no duplicate uuids in master queues', () => {
     let openQ = [o('A'), o('B'), o('C')];
     const wq = [w('M')];
-    const desiredOpen = getWrapped(openQ, 0, 3);
-    const desiredW = getWrapped(wq, 0, 1);
     const drag = applyDragReorderToMasterQueues({
       masterOpenQueue: openQ,
       masterWomenQueue: wq,
       openIndex: 0,
       womenIndex: 0,
       newRosterActivePlayers: [openQ[2], openQ[0], openQ[1], wq[0]],
-      desiredOpenLineSlice: desiredOpen,
-      desiredWomenLineSlice: desiredW,
-      openSliceLen: 3,
-      womenSliceLen: 1,
     });
     let r = applyQueueRemovalsForRosterChange(
       drag.masterOpenQueue,
@@ -380,12 +388,13 @@ describe('restoreActivatedPendingAfterUndo', () => {
 /** Simulates scoring a point: advance raw indices by current pattern counts. */
 function advanceRotationForPoint(
   lineIndex: number,
-  genderRatioMode: 'ABBA',
   lineupSize: 7,
+  startingOpen: number,
+  splitCycle: 'ABBA',
   openIndex: number,
   womenIndex: number
 ): { openIndex: number; womenIndex: number; nextLineIndex: number } {
-  const pattern = getGenderPattern(lineIndex, genderRatioMode, lineupSize);
+  const pattern = getGenderPattern(lineIndex, lineupSize, startingOpen, splitCycle);
   return {
     openIndex: openIndex + pattern.men,
     womenIndex: womenIndex + pattern.women,
@@ -395,8 +404,9 @@ function advanceRotationForPoint(
 
 describe('coach stress scenarios (rec league)', () => {
   it('injury: player on current line removed mid-game; line still fills pattern with no duplicate uuids', () => {
-    const mode = 'ABBA' as const;
+    const splitCycle = 'ABBA' as const;
     const size = 7;
+    const startingOpen = 4;
     let openQ = [o('O1'), o('O2'), o('O3'), o('O4'), o('O5')];
     const wq = [w('W1'), w('W2'), w('W3'), w('W4')];
     let lineIdx = 0;
@@ -404,12 +414,12 @@ describe('coach stress scenarios (rec league)', () => {
     let wi = 0;
     // Two points scored — rotation has moved.
     for (let i = 0; i < 2; i++) {
-      const adv = advanceRotationForPoint(lineIdx, mode, size, oi, wi);
+      const adv = advanceRotationForPoint(lineIdx, size, startingOpen, splitCycle, oi, wi);
       oi = adv.openIndex;
       wi = adv.womenIndex;
       lineIdx = adv.nextLineIndex;
     }
-    const pattern = getGenderPattern(lineIdx, mode, size);
+    const pattern = getGenderPattern(lineIdx, size, startingOpen, splitCycle);
     const before = getLine(openQ, wq, pattern, oi % openQ.length, wi % wq.length);
     const victim = before.find((p) => p.gender === 'O')!;
     const rm = applyQueueRemovalsForRosterChange(openQ, wq, oi, wi, [victim]);
@@ -445,8 +455,9 @@ describe('coach stress scenarios (rec league)', () => {
   });
 
   it('late arrival: would displace on point 5 → pending; after next point rotation, partition can activate', () => {
-    const mode = 'ABBA' as const;
+    const splitCycle = 'ABBA' as const;
     const size = 7;
+    const startingOpen = 4;
     const openQ = [o('A'), o('B'), o('C'), o('D')];
     const women = [w('M'), w('N'), w('P')];
     let lineIdx = 0;
@@ -460,7 +471,8 @@ describe('coach stress scenarios (rec league)', () => {
         openIndex: oi,
         womenIndex: wi,
         lineIndex: lineIdx,
-        genderRatioMode: mode,
+        startingOpen,
+        splitCycle,
         lineupSize: size,
         newPlayer: late,
       })
@@ -473,13 +485,14 @@ describe('coach stress scenarios (rec league)', () => {
       openIndex: oi,
       womenIndex: wi,
       lineIndex: lineIdx,
-      genderRatioMode: mode,
+      startingOpen,
+      splitCycle,
       lineupSize: size,
     });
     expect(pendingFirst.activate).toEqual([]);
     expect(pendingFirst.stillPending.map((p) => p.name)).toEqual(['Straggler']);
 
-    const adv = advanceRotationForPoint(lineIdx, mode, size, oi, wi);
+    const adv = advanceRotationForPoint(lineIdx, size, startingOpen, splitCycle, oi, wi);
     const pendingAfterPoint = partitionPendingForLineChange({
       pendingPlayers: [late],
       masterOpenQueue: openQ,
@@ -487,7 +500,8 @@ describe('coach stress scenarios (rec league)', () => {
       openIndex: adv.openIndex,
       womenIndex: adv.womenIndex,
       lineIndex: adv.nextLineIndex,
-      genderRatioMode: mode,
+      startingOpen,
+      splitCycle,
       lineupSize: size,
     });
     expect(pendingAfterPoint.stillPending).toEqual([]);
@@ -505,7 +519,8 @@ describe('coach stress scenarios (rec league)', () => {
       openIndex: 0,
       womenIndex: 0,
       lineIndex: 0,
-      genderRatioMode: 'ABBA',
+      startingOpen: 4,
+      splitCycle: 'ABBA',
       lineupSize: 7,
     });
     expect(part.activate).toEqual([]);

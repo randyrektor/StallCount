@@ -1,43 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Player, type GenderRatioMode, type LineupSize, type StartsOn, type Theme } from '../types';
-import { getGenderPattern, modeHasStartingPoint } from '../utils/rotationHelpers';
+import { Player, type LineupSize, type SplitCycle, type Theme } from '../types';
+import {
+  isSplitCycleAvailable,
+  clampOpenCount,
+} from '../utils/rotationHelpers';
 import { THEME } from '../constants';
 
-/** Compact ratio like "4O : 3W". */
+/** Compact ratio like "4:2" (open : women-matching). */
 function formatRatio(men: number, women: number): string {
-  return `${men}O : ${women}W`;
-}
-
-/** One short line under each option; updates when players per point / starts-on changes. */
-function shortGenderRatioDescription(
-  mode: GenderRatioMode,
-  size: LineupSize,
-  startsOn: StartsOn
-): string {
-  if (mode === 'MEN') return `${size}O`;
-  if (mode === 'WOMEN') return `${size}W`;
-  if (mode === '4-3') {
-    const { men, women } = getGenderPattern(0, '4-3', size);
-    return formatRatio(men, women);
-  }
-  if (mode === '3-4') {
-    const { men, women } = getGenderPattern(0, '3-4', size);
-    return formatRatio(men, women);
-  }
-  if (mode === 'ABBA') {
-    const a = getGenderPattern(0, 'ABBA', size, startsOn);
-    const b = getGenderPattern(1, 'ABBA', size, startsOn);
-    return `${formatRatio(a.men, a.women)} ↔ ${formatRatio(b.men, b.women)}`;
-  }
-  if (mode === 'AAB') {
-    const aa = getGenderPattern(0, 'AAB', size, startsOn);
-    const b = getGenderPattern(2, 'AAB', size, startsOn);
-    return `${formatRatio(aa.men, aa.women)} ×2, ${formatRatio(b.men, b.women)}`;
-  }
-  return '';
+  return `${men}:${women}`;
 }
 
 const LINEUP_SIZE_OPTIONS: LineupSize[] = [4, 5, 6, 7];
+const CYCLE_OPTIONS: { label: string; value: SplitCycle; hint: string }[] = [
+  { label: 'Same', value: 'same', hint: 'Every point' },
+  { label: 'ABBA', value: 'ABBA', hint: 'A B B A' },
+  { label: 'AAB', value: 'AAB', hint: 'A A B' },
+];
 
 const COLORS = {
   background: THEME.bgPage,
@@ -62,18 +41,12 @@ interface SettingsModalProps {
   team2Name: string;
   onTeam1NameChange: (name: string) => void;
   onTeam2NameChange: (name: string) => void;
-  gameStartTime: string;
-  halftimeTime: string;
-  endTime: string;
-  onGameStartTimeChange: (time: string) => void;
-  onHalftimeTimeChange: (time: string) => void;
-  onEndTimeChange: (time: string) => void;
-  genderRatioMode: GenderRatioMode;
-  onGenderRatioModeChange: (mode: GenderRatioMode) => void;
+  startingOpen: number;
+  onStartingOpenChange: (open: number) => void;
   lineupSize: LineupSize;
   onLineupSizeChange: (size: LineupSize) => void;
-  startsOn: StartsOn;
-  onStartsOnChange: (value: StartsOn) => void;
+  splitCycle: SplitCycle;
+  onSplitCycleChange: (cycle: SplitCycle) => void;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
   onReset: () => void;
@@ -97,18 +70,12 @@ export function SettingsModal({
   team2Name,
   onTeam1NameChange,
   onTeam2NameChange,
-  gameStartTime,
-  halftimeTime,
-  endTime,
-  onGameStartTimeChange,
-  onHalftimeTimeChange,
-  onEndTimeChange,
-  genderRatioMode,
-  onGenderRatioModeChange,
+  startingOpen,
+  onStartingOpenChange,
   lineupSize,
   onLineupSizeChange,
-  startsOn,
-  onStartsOnChange,
+  splitCycle,
+  onSplitCycleChange,
   theme,
   onThemeChange,
   onReset,
@@ -125,28 +92,20 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [localTeam1Name, setLocalTeam1Name] = useState(team1Name);
   const [localTeam2Name, setLocalTeam2Name] = useState(team2Name);
-  const [localGameStartTime, setLocalGameStartTime] = useState(gameStartTime);
-  const [localHalftimeTime, setLocalHalftimeTime] = useState(halftimeTime);
-  const [localEndTime, setLocalEndTime] = useState(endTime);
-  const [localGenderRatioMode, setLocalGenderRatioMode] = useState<GenderRatioMode>(genderRatioMode);
+  const [localStartingOpen, setLocalStartingOpen] = useState(startingOpen);
   const [localLineupSize, setLocalLineupSize] = useState<LineupSize>(lineupSize);
-  const [localStartsOn, setLocalStartsOn] = useState<StartsOn>(startsOn);
+  const [localSplitCycle, setLocalSplitCycle] = useState<SplitCycle>(splitCycle);
   const [localTheme, setLocalTheme] = useState<Theme>(theme);
 
   useEffect(() => {
     if (!visible) return;
     setLocalTeam1Name(team1Name);
     setLocalTeam2Name(team2Name);
-    setLocalGameStartTime(gameStartTime);
-    setLocalHalftimeTime(halftimeTime);
-    setLocalEndTime(endTime);
-    setLocalGenderRatioMode(genderRatioMode);
+    setLocalStartingOpen(startingOpen);
     setLocalLineupSize(lineupSize);
-    setLocalStartsOn(startsOn);
+    setLocalSplitCycle(splitCycle);
     setLocalTheme(theme);
-  }, [visible, team1Name, team2Name, gameStartTime, halftimeTime, endTime, genderRatioMode, lineupSize, startsOn, theme]);
-
-  const showStartsOn = modeHasStartingPoint(localGenderRatioMode);
+  }, [visible, team1Name, team2Name, startingOpen, lineupSize, splitCycle, theme]);
 
   // Apply the chosen theme live as the user toggles, so they can see contrast
   // before saving. Reverts on cancel via handleCancel.
@@ -155,15 +114,21 @@ export function SettingsModal({
     document.documentElement.dataset.theme = localTheme;
   }, [localTheme, visible]);
 
+  useEffect(() => {
+    if (!isSplitCycleAvailable(localLineupSize, localStartingOpen, localSplitCycle)) {
+      setLocalSplitCycle('same');
+    }
+  }, [localLineupSize, localStartingOpen, localSplitCycle]);
+
   const handleSave = () => {
     onTeam1NameChange(localTeam1Name);
     onTeam2NameChange(localTeam2Name);
-    onGameStartTimeChange(localGameStartTime);
-    onHalftimeTimeChange(localHalftimeTime);
-    onEndTimeChange(localEndTime);
-    onGenderRatioModeChange(localGenderRatioMode);
+    const open = clampOpenCount(localStartingOpen, localLineupSize);
     onLineupSizeChange(localLineupSize);
-    onStartsOnChange(localStartsOn);
+    onStartingOpenChange(open);
+    onSplitCycleChange(
+      isSplitCycleAvailable(localLineupSize, open, localSplitCycle) ? localSplitCycle : 'same'
+    );
     onThemeChange(localTheme);
     onClose();
   };
@@ -171,12 +136,9 @@ export function SettingsModal({
   const handleCancel = () => {
     setLocalTeam1Name(team1Name);
     setLocalTeam2Name(team2Name);
-    setLocalGameStartTime(gameStartTime);
-    setLocalHalftimeTime(halftimeTime);
-    setLocalEndTime(endTime);
-    setLocalGenderRatioMode(genderRatioMode);
+    setLocalStartingOpen(startingOpen);
     setLocalLineupSize(lineupSize);
-    setLocalStartsOn(startsOn);
+    setLocalSplitCycle(splitCycle);
     setLocalTheme(theme);
     // Revert any live theme preview from the modal.
     document.documentElement.dataset.theme = theme;
@@ -226,10 +188,8 @@ ${masterWomenQueue.length ? masterWomenQueue.map((p, i) => `${i + 1}. ${p.name}`
 
 GAME SETTINGS:
 Players per point: ${lineupSize}
-Gender Ratio Mode: ${genderRatioMode}
-Game Start Time: ${gameStartTime}
-Halftime Time: ${halftimeTime}
-End Time: ${endTime}
+Starting split: ${formatRatio(startingOpen, lineupSize - startingOpen)}
+Cycle: ${splitCycle}
 
 ---
 Report generated by Ultimate Score App
@@ -249,14 +209,8 @@ Report generated by Ultimate Score App
 
   if (!visible) return null;
 
-  const GENDER_MODE_OPTIONS: { label: string; value: GenderRatioMode }[] = [
-    { label: 'ABBA', value: 'ABBA' },
-    { label: 'AAB', value: 'AAB' },
-    { label: 'Open-Favored', value: '4-3' },
-    { label: 'Women-Favored', value: '3-4' },
-    { label: 'Open Only', value: 'MEN' },
-    { label: 'Women-Matching Only', value: 'WOMEN' },
-  ];
+  const openCount = clampOpenCount(localStartingOpen, localLineupSize);
+  const womenCount = localLineupSize - openCount;
 
   return (
     <div style={styles.overlay} onClick={onClose}>
@@ -264,8 +218,7 @@ Report generated by Ultimate Score App
         {/* Header */}
         <div style={styles.header}>
           <div>
-            <h2 style={styles.title}>Game Settings</h2>
-            <p style={styles.subtitle}>Configure your game options</p>
+            <h2 style={styles.title}>Settings</h2>
           </div>
           <div style={styles.headerActions}>
             <div
@@ -303,41 +256,43 @@ Report generated by Ultimate Score App
         </div>
 
         <div style={styles.content}>
-          {/* Team Names Section */}
           <div style={styles.card}>
             <div style={styles.cardHeader}>
               <h3 style={styles.cardTitle}>Teams</h3>
             </div>
             <div style={styles.cardContent}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Your Team</label>
-                <input
-                  style={styles.input}
-                  type="text"
-                  value={localTeam1Name}
-                  onChange={(e) => setLocalTeam1Name(e.target.value)}
-                  placeholder="Enter your team name"
-                />
-              </div>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Opponent</label>
-                <input
-                  style={styles.input}
-                  type="text"
-                  value={localTeam2Name}
-                  onChange={(e) => setLocalTeam2Name(e.target.value)}
-                  placeholder="Enter opponent name"
-                />
+              <div style={styles.teamsRow}>
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>Us</label>
+                  <input
+                    style={styles.input}
+                    type="text"
+                    value={localTeam1Name}
+                    onChange={(e) => setLocalTeam1Name(e.target.value)}
+                    placeholder="Your team"
+                  />
+                </div>
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>Opponent</label>
+                  <input
+                    style={styles.input}
+                    type="text"
+                    value={localTeam2Name}
+                    onChange={(e) => setLocalTeam2Name(e.target.value)}
+                    placeholder="Opponent"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
           <div style={styles.card}>
             <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>Players per point</h3>
+              <h3 style={styles.cardTitle}>Line</h3>
             </div>
             <div style={styles.cardContent}>
-              <div style={styles.lineupSizeRow}>
+              <label style={styles.label}>Players per point</label>
+              <div style={{ ...styles.lineupSizeRow, marginBottom: 16 }}>
                 {LINEUP_SIZE_OPTIONS.map((n) => (
                   <button
                     key={n}
@@ -346,141 +301,101 @@ Report generated by Ultimate Score App
                       ...styles.lineupSizeButton,
                       ...(localLineupSize === n ? styles.lineupSizeButtonActive : {}),
                     }}
-                    onClick={() => setLocalLineupSize(n)}
+                    onClick={() => {
+                      setLocalLineupSize(n);
+                      setLocalStartingOpen((open) => clampOpenCount(open, n));
+                    }}
                   >
                     {n}
                   </button>
                 ))}
               </div>
-            </div>
-          </div>
-
-          {/* Gender Ratio Section */}
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>Gender Ratio</h3>
-            </div>
-            <div style={styles.cardContent}>
-              <div style={styles.ratioGrid}>
-                {GENDER_MODE_OPTIONS.map((mode) => (
-                  <button
-                    key={mode.value}
-                    type="button"
-                    style={{
-                      ...styles.ratioButton,
-                      ...(localGenderRatioMode === mode.value ? styles.ratioButtonActive : {}),
-                    }}
-                    onClick={() => setLocalGenderRatioMode(mode.value)}
-                  >
-                    <span style={styles.ratioLabel}>{mode.label}</span>
-                    <span style={styles.ratioDescription}>
-                      {shortGenderRatioDescription(mode.value, localLineupSize, localStartsOn)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Starting Line — only shown for cyclic modes (ABBA, AAB) */}
-          {showStartsOn && (
-            <div style={styles.card}>
-              <div style={styles.cardHeader}>
-                <h3 style={styles.cardTitle}>Starting Line</h3>
-              </div>
-              <div style={styles.cardContent}>
-                <div style={styles.themeToggleRow}>
-                  <button
-                    type="button"
-                    style={{
-                      ...styles.themeButton,
-                      ...(localStartsOn === 'O' ? styles.themeButtonActive : {}),
-                    }}
-                    onClick={() => setLocalStartsOn('O')}
-                  >
-                    <span style={styles.themeButtonLabel}>Open</span>
-                  </button>
-                  <button
-                    type="button"
-                    style={{
-                      ...styles.themeButton,
-                      ...(localStartsOn === 'W' ? styles.themeButtonActive : {}),
-                    }}
-                    onClick={() => setLocalStartsOn('W')}
-                  >
-                    <span style={styles.themeButtonLabel}>Woman-Matching</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Game Times Section */}
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>Game Times</h3>
-            </div>
-            <div style={styles.cardContent}>
-              <div style={styles.timeGrid}>
-                <div style={styles.timeInputGroup}>
-                  <label style={styles.timeLabel}>Start</label>
-                  <input
-                    style={styles.timeInput}
-                    type="time"
-                    value={localGameStartTime}
-                    onChange={(e) => setLocalGameStartTime(e.target.value)}
-                  />
-                </div>
-                <div style={styles.timeInputGroup}>
-                  <label style={styles.timeLabel}>Halftime</label>
-                  <input
-                    style={styles.timeInput}
-                    type="time"
-                    value={localHalftimeTime}
-                    onChange={(e) => setLocalHalftimeTime(e.target.value)}
-                  />
-                </div>
-                <div style={styles.timeInputGroup}>
-                  <label style={styles.timeLabel}>End</label>
-                  <input
-                    style={styles.timeInput}
-                    type="time"
-                    value={localEndTime}
-                    onChange={(e) => setLocalEndTime(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions Section */}
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>Actions</h3>
-            </div>
-            <div style={styles.cardContent}>
-              <button style={styles.actionButton} onClick={handleExportScore}>
-                <div style={styles.actionContent}>
-                  <div style={styles.actionTitle}>Export Game Report</div>
-                  <div style={styles.actionDescription}>Download score and roster</div>
-                </div>
-              </button>
-
-              {onChangeTeam && (
-                <button style={styles.actionButton} onClick={handleChangeTeam}>
-                  <div style={styles.actionContent}>
-                    <div style={styles.actionTitle}>Change Team</div>
-                    <div style={styles.actionDescription}>Start with a different team</div>
-                  </div>
+              <label style={styles.label}>Starting split</label>
+              <div style={styles.splitStepper}>
+                <button
+                  type="button"
+                  aria-label="+ Open"
+                  style={{
+                    ...styles.splitStepButton,
+                    ...styles.splitStepButtonOpen,
+                    ...(openCount >= localLineupSize ? styles.splitStepButtonDisabled : {}),
+                  }}
+                  disabled={openCount >= localLineupSize}
+                  onClick={() => setLocalStartingOpen(Math.min(localLineupSize, openCount + 1))}
+                >
+                  + Open
                 </button>
-              )}
-
-              <button style={styles.actionButtonDanger} onClick={handleReset}>
-                <div style={styles.actionContent}>
-                  <div style={styles.actionTitle}>Reset Game</div>
-                  <div style={styles.actionDescription}>Clear scores and history</div>
+                <div style={styles.splitValue}>
+                  <span style={styles.splitRatio}>{formatRatio(openCount, womenCount)}</span>
                 </div>
-              </button>
+                <button
+                  type="button"
+                  aria-label="+ Women"
+                  style={{
+                    ...styles.splitStepButton,
+                    ...styles.splitStepButtonWomen,
+                    ...(openCount <= 0 ? styles.splitStepButtonDisabled : {}),
+                  }}
+                  disabled={openCount <= 0}
+                  onClick={() => setLocalStartingOpen(Math.max(0, openCount - 1))}
+                >
+                  + Women
+                </button>
+              </div>
+              <label style={{ ...styles.label, marginTop: 16 }}>Cycle</label>
+              <div style={styles.cycleRow}>
+                {CYCLE_OPTIONS.map((opt) => {
+                  const cycleLocked = !isSplitCycleAvailable(localLineupSize, openCount, opt.value);
+                  const isActive = localSplitCycle === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={cycleLocked}
+                      aria-disabled={cycleLocked}
+                      style={{
+                        ...styles.lineupSizeButton,
+                        ...(isActive ? styles.lineupSizeButtonActive : {}),
+                        ...(cycleLocked ? styles.cycleButtonDisabled : {}),
+                      }}
+                      onClick={() => {
+                        if (cycleLocked) return;
+                        setLocalSplitCycle(opt.value);
+                      }}
+                    >
+                      <span style={{
+                        ...styles.ratioLabel,
+                        ...(cycleLocked ? styles.cycleButtonDisabledText : {}),
+                      }}>{opt.label}</span>
+                      <span style={{
+                        ...styles.ratioDescription,
+                        ...(cycleLocked ? styles.cycleButtonDisabledText : {}),
+                      }}>{opt.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h3 style={styles.cardTitle}>Game</h3>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={styles.compactActions}>
+                <button style={styles.compactAction} onClick={handleExportScore}>
+                  Export
+                </button>
+                {onChangeTeam && (
+                  <button style={styles.compactAction} onClick={handleChangeTeam}>
+                    Change team
+                  </button>
+                )}
+                <button style={styles.compactActionDanger} onClick={handleReset}>
+                  Reset
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -527,25 +442,19 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
   },
   header: {
-    padding: '32px 32px 24px',
+    padding: '20px 24px 16px',
     borderBottom: `1px solid ${THEME.borderSoftest}`,
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: '16px',
   },
   title: {
     color: COLORS.text,
-    fontSize: '28px',
+    fontSize: '22px',
     fontWeight: '700',
-    margin: '0 0 4px 0',
-    letterSpacing: '-0.5px',
-  },
-  subtitle: {
-    color: COLORS.textSecondary,
-    fontSize: '14px',
     margin: 0,
-    fontWeight: '400',
+    letterSpacing: '-0.5px',
   },
   headerActions: {
     display: 'flex',
@@ -595,19 +504,19 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
   },
   content: {
-    padding: '24px 32px',
+    padding: '16px 24px',
     overflowY: 'auto',
     flex: 1,
   },
   card: {
     backgroundColor: THEME.bgSubtle3,
     borderRadius: '12px',
-    marginBottom: '20px',
+    marginBottom: '12px',
     border: `1px solid ${THEME.borderFaint}`,
     overflow: 'hidden',
   },
   cardHeader: {
-    padding: '16px 20px',
+    padding: '10px 16px',
     borderBottom: `1px solid ${THEME.borderFaint}`,
     display: 'flex',
     alignItems: 'center',
@@ -615,15 +524,20 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardTitle: {
     color: COLORS.text,
-    fontSize: '16px',
+    fontSize: '14px',
     fontWeight: '600',
     margin: 0,
   },
   cardContent: {
-    padding: '20px',
+    padding: '14px 16px',
+  },
+  teamsRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '12px',
   },
   inputGroup: {
-    marginBottom: '16px',
+    marginBottom: 0,
   },
   label: {
     display: 'block',
@@ -646,24 +560,65 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'all 0.2s ease',
     outline: 'none',
   },
-  ratioGrid: {
+  splitStepper: {
     display: 'grid',
-    gridTemplateColumns: '1fr',
+    gridTemplateColumns: '1fr auto 1fr',
     gap: '10px',
+    alignItems: 'center',
   },
-  ratioButton: {
-    padding: '14px 16px',
+  splitStepButton: {
+    padding: '14px 10px',
     backgroundColor: THEME.bgSubtle3,
     border: `1.5px solid ${THEME.borderSofter}`,
     borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    textAlign: 'left',
+    color: COLORS.text,
+    fontSize: '15px',
+    fontWeight: 700,
+    lineHeight: 1.2,
     outline: 'none',
+    WebkitTapHighlightColor: 'transparent',
   },
-  ratioButtonActive: {
-    backgroundColor: THEME.openTint,
-    border: `1.5px solid ${COLORS.open}`,
+  splitStepButtonOpen: {
+    backgroundColor: COLORS.open,
+    color: THEME.textOnAccent,
+    border: 'none',
+  },
+  splitStepButtonWomen: {
+    backgroundColor: COLORS.women,
+    color: THEME.textOnAccent,
+    border: 'none',
+  },
+  splitStepButtonDisabled: {
+    opacity: 0.4,
+    cursor: 'not-allowed',
+  },
+  splitValue: {
+    textAlign: 'center',
+    minWidth: '72px',
+    padding: '0 4px',
+  },
+  splitRatio: {
+    display: 'block',
+    color: COLORS.text,
+    fontSize: '28px',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  cycleRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '10px',
+  },
+  cycleButtonDisabled: {
+    opacity: 0.4,
+    cursor: 'not-allowed',
+    backgroundColor: THEME.bgSubtle3,
+    border: `1.5px solid ${THEME.borderSofter}`,
+  },
+  cycleButtonDisabledText: {
+    color: COLORS.textSecondary,
   },
   ratioLabel: {
     color: COLORS.text,
@@ -729,77 +684,35 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '15px',
     fontWeight: 700,
   },
-  timeGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '12px',
-  },
-  timeInputGroup: {
+  compactActions: {
     display: 'flex',
-    flexDirection: 'column',
     gap: '8px',
+    flexWrap: 'wrap',
   },
-  timeLabel: {
-    color: COLORS.textSecondary,
-    fontSize: '12px',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  },
-  timeInput: {
-    padding: '12px',
-    backgroundColor: COLORS.inputBg,
-    border: `1.5px solid ${COLORS.inputBorder}`,
-    borderRadius: '8px',
-    color: COLORS.text,
-    fontSize: '14px',
-    textAlign: 'center',
-    transition: 'all 0.2s ease',
-    outline: 'none',
-  },
-  actionButton: {
-    width: '100%',
-    padding: '16px',
+  compactAction: {
+    flex: '1 1 auto',
+    padding: '12px 14px',
     backgroundColor: THEME.bgSubtle3,
     border: `1.5px solid ${THEME.borderSofter}`,
     borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-    marginBottom: '10px',
+    color: COLORS.text,
+    fontSize: '14px',
+    fontWeight: 600,
   },
-  actionButtonDanger: {
-    width: '100%',
-    padding: '16px',
+  compactActionDanger: {
+    flex: '1 1 auto',
+    padding: '12px 14px',
     backgroundColor: THEME.dangerTint,
     border: `1.5px solid ${THEME.dangerBorder}`,
     borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-    marginBottom: '10px',
-  },
-  actionContent: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    textAlign: 'left',
-  },
-  actionTitle: {
-    color: COLORS.text,
-    fontSize: '15px',
-    fontWeight: '600',
-  },
-  actionDescription: {
-    color: COLORS.textSecondary,
-    fontSize: '13px',
+    color: COLORS.danger,
+    fontSize: '14px',
+    fontWeight: 600,
   },
   footer: {
-    padding: '20px 32px',
+    padding: '16px 24px',
     borderTop: `1px solid ${THEME.borderSoftest}`,
     display: 'flex',
     gap: '12px',
