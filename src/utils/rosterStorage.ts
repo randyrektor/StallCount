@@ -1,10 +1,11 @@
 import type { Player } from '../types';
+import { isPlayerPosition } from '../types';
 
 const STORAGE_KEY = 'ultimate-rosters';
 
 type RosterMap = Record<string, Player[]>;
 
-function isPlayer(x: unknown): x is Player {
+function isPlayerShape(x: unknown): x is Player {
   if (!x || typeof x !== 'object') return false;
   const o = x as Record<string, unknown>;
   return (
@@ -13,6 +14,23 @@ function isPlayer(x: unknown): x is Player {
     (o.gender === 'O' || o.gender === 'W') &&
     typeof o.number === 'number'
   );
+}
+
+function normalizePlayer(x: unknown): Player | null {
+  if (!isPlayerShape(x)) return null;
+  const o = x as Record<string, unknown>;
+  const jersey =
+    typeof o.jersey === 'number' && Number.isInteger(o.jersey) && o.jersey >= 0 && o.jersey <= 99
+      ? o.jersey
+      : undefined;
+  return {
+    uuid: x.uuid,
+    name: x.name,
+    gender: x.gender,
+    number: x.number,
+    ...(jersey != null ? { jersey } : {}),
+    ...(isPlayerPosition(o.position) ? { position: o.position } : {}),
+  };
 }
 
 function normalizeTeamKey(teamName: string): string {
@@ -30,7 +48,7 @@ export function loadRosterForTeam(teamName: string): Player[] | null {
     if (!map || typeof map !== 'object') return null;
     const players = (map as RosterMap)[key];
     if (!Array.isArray(players)) return null;
-    const valid = players.filter(isPlayer);
+    const valid = players.map(normalizePlayer).filter((p): p is Player => p != null);
     return valid.length > 0 ? valid : null;
   } catch {
     return null;

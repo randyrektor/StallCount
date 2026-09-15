@@ -25,7 +25,6 @@ import {
 } from './src/utils/rosterManagerLogic';
 import { COLORS } from './src/constants';
 import { loadRosterForTeam, saveRosterForTeam } from './src/utils/rosterStorage';
-import './src/global.css';
 import { AppShell } from './src/components/AppShell';
 
 // No hardcoded roster - players are added each game

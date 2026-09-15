@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { Player } from '../types';
+import { Player, PLAYER_POSITION_SHORT, type PlayerPosition } from '../types';
 
 interface PlayerSeatProps extends React.HTMLAttributes<HTMLDivElement> {
   gender: 'O' | 'W';
@@ -7,6 +7,10 @@ interface PlayerSeatProps extends React.HTMLAttributes<HTMLDivElement> {
   empty?: boolean;
   tone?: 'current' | 'next';
   pending?: boolean;
+  jersey?: number;
+  position?: PlayerPosition;
+  jerseySlot?: React.ReactNode;
+  positionSlot?: React.ReactNode;
 }
 
 export const PlayerSeat = forwardRef<HTMLDivElement, PlayerSeatProps>(function PlayerSeat(
@@ -16,6 +20,10 @@ export const PlayerSeat = forwardRef<HTMLDivElement, PlayerSeatProps>(function P
     empty = false,
     tone = 'current',
     pending = false,
+    jersey,
+    position,
+    jerseySlot,
+    positionSlot,
     className = '',
     style,
     children,
@@ -33,6 +41,13 @@ export const PlayerSeat = forwardRef<HTMLDivElement, PlayerSeatProps>(function P
     className,
   ].filter(Boolean).join(' ');
 
+  const jerseyNode =
+    jerseySlot ??
+    (jersey != null ? <span className="player-seat-jersey">{jersey}</span> : null);
+  const positionNode =
+    positionSlot ??
+    (position ? <span className="player-seat-pos">{PLAYER_POSITION_SHORT[position]}</span> : null);
+
   return (
     <div
       ref={ref}
@@ -44,6 +59,12 @@ export const PlayerSeat = forwardRef<HTMLDivElement, PlayerSeatProps>(function P
       <span className="player-seat-name">
         {empty ? `Empty · ${genderLabel}` : name}
       </span>
+      {(jerseyNode || positionNode) && (
+        <span className="player-seat-meta">
+          {jerseyNode}
+          {positionNode}
+        </span>
+      )}
       {children}
     </div>
   );
@@ -56,6 +77,8 @@ export function seatFromPlayer(
   return {
     gender: player.gender,
     name: player.name,
+    jersey: player.jersey,
+    position: player.position,
     ...extras,
   };
 }

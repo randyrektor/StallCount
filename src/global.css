@@ -471,10 +471,57 @@ input:focus {
   margin: 0 0 8px;
 }
 
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.roster-index {
+  flex: 0 0 28px;
+  min-width: 28px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  user-select: none;
+}
+
+.roster-index--empty {
+  opacity: 0.35;
+}
+
 .roster-section-rest {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-soft);
+}
+
+.roster-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.roster-hint {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.roster-sheet .kickoff-footer {
+  margin-top: 4px;
 }
 
 .confirm-overlay {
@@ -682,7 +729,84 @@ input:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+}
+
+.player-seat-meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.player-seat-jersey {
+  flex-shrink: 0;
+  min-width: 28px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 13px;
+  text-align: right;
+  opacity: 0.8;
+}
+
+.player-seat-pos {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.player-seat-field {
+  box-sizing: border-box;
+  border: none;
+  background-color: var(--bg-input-soft);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color-scheme: dark;
+}
+
+.player-seat-field::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.player-seat-field--jersey {
+  width: 32px;
+  min-width: 32px;
+  height: 26px;
+  flex-shrink: 0;
   text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding: 0;
+  line-height: 26px;
+}
+
+.player-seat-field--pos {
+  width: 6.75rem;
+  min-width: 6.75rem;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0 6px;
+}
+
+.player-seat:not(.player-seat-add) .player-seat-field {
+  background-color: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.player-seat:not(.player-seat-add) .player-seat-field::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.player-seat-field option {
+  color: #111;
 }
 
 .player-seat-pending {
@@ -698,51 +822,108 @@ input:focus {
 
 .player-seat--empty {
   background: transparent;
-  border-style: dashed;
-  color: var(--text);
+  border: 2px dashed var(--border-soft);
+  color: var(--text-muted);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.player-seat--empty .player-seat-name {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .player-seat--empty.player-seat--open,
 .player-seat--empty.player-seat--next.player-seat--open {
-  border-color: var(--accent-open);
-  background: var(--accent-open-tint);
-  color: var(--accent-open);
+  border-color: color-mix(in srgb, var(--accent-open) 32%, var(--border-soft));
+  background: transparent;
+  color: var(--text-muted);
 }
 
 .player-seat--empty.player-seat--women,
 .player-seat--empty.player-seat--next.player-seat--women {
-  border-color: var(--accent-women);
-  background: var(--accent-women-tint);
-  color: var(--accent-women);
+  border-color: color-mix(in srgb, var(--accent-women) 32%, var(--border-soft));
+  background: transparent;
+  color: var(--text-muted);
 }
 
+/* Composer: solid gender outline + tint — not a filled name card, not a dashed empty slot */
 .player-seat-add {
-  padding: 0 10px;
+  padding: 0 8px 0 6px;
   cursor: text;
+  box-shadow: none;
+  color: var(--text);
 }
 
-.player-seat-add input {
-  width: 100%;
+.player-seat-add.player-seat--open {
+  background: var(--accent-open-tint);
+  border: 2px solid var(--accent-open);
+}
+
+.player-seat-add.player-seat--women {
+  background: var(--accent-women-tint);
+  border: 2px solid var(--accent-women);
+}
+
+.player-seat-add.player-seat--open:focus-within {
+  box-shadow: 0 0 0 3px var(--accent-open-glow);
+}
+
+.player-seat-add.player-seat--women:focus-within {
+  box-shadow: 0 0 0 3px var(--accent-women-muted);
+}
+
+.player-seat-add-plus {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-on-accent);
+}
+
+.player-seat-add.player-seat--open .player-seat-add-plus {
+  background: var(--accent-open);
+}
+
+.player-seat-add.player-seat--women .player-seat-add-plus {
+  background: var(--accent-women);
+}
+
+.player-seat-add input.player-seat-add-name {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  text-align: left;
   border: none;
   background: transparent;
-  color: inherit;
+  color: var(--text);
   font: inherit;
-  font-weight: 700;
-  text-align: center;
+  font-weight: 600;
   outline: none;
-  min-height: 0;
+  min-height: 40px;
   height: 100%;
 }
 
 .player-seat-add input::placeholder {
-  color: inherit;
-  opacity: 0.65;
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.player-seat-add input.player-seat-field--jersey::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 .player-seat-add input:focus {
   outline: none;
-  border-color: transparent !important;
-  box-shadow: none !important;
 }
 
 .player-seat-row {
@@ -780,4 +961,12 @@ input:focus {
 }
 [data-theme='light'] .player-seat--next .player-seat-name {
   color: inherit;
+}
+
+[data-theme='light'] .player-seat--empty.player-seat--open,
+[data-theme='light'] .player-seat--empty.player-seat--next.player-seat--open,
+[data-theme='light'] .player-seat--empty.player-seat--women,
+[data-theme='light'] .player-seat--empty.player-seat--next.player-seat--women {
+  background: transparent;
+  color: var(--text-muted);
 }

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Player, type LineupSize, type SplitCycle } from '../types';
+import { Player, type LineupSize, type SplitCycle, type PlayerPosition, PLAYER_POSITIONS, PLAYER_POSITION_LABELS, parseJersey } from '../types';
 import { THEME } from '../constants';
 import { AppShell } from './AppShell';
 import { PlayerSeat } from './PlayerSeat';
@@ -50,6 +50,79 @@ interface PlayerManagerWebProps {
   onSplitCycleChange?: (cycle: SplitCycle) => void;
 }
 
+function stopSeatDrag(e: React.SyntheticEvent) {
+  e.stopPropagation();
+}
+
+function PositionSelect({
+  value,
+  onChange,
+  ariaLabel,
+  className = 'player-seat-field player-seat-field--pos',
+}: {
+  value: PlayerPosition | '';
+  onChange: (value: PlayerPosition | '') => void;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <select
+      className={className}
+      value={value}
+      aria-label={ariaLabel}
+      onPointerDown={stopSeatDrag}
+      onMouseDown={stopSeatDrag}
+      onClick={stopSeatDrag}
+      onChange={(e) => onChange(e.target.value as PlayerPosition | '')}
+    >
+      <option value="">Pos</option>
+      {PLAYER_POSITIONS.map((pos) => (
+        <option key={pos} value={pos}>
+          {PLAYER_POSITION_LABELS[pos]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function JerseyInput({
+  value,
+  onChange,
+  onEnter,
+  ariaLabel,
+  className = 'player-seat-field player-seat-field--jersey',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onEnter?: () => void;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <input
+      className={className}
+      value={value}
+      inputMode="numeric"
+      maxLength={2}
+      placeholder="#"
+      aria-label={ariaLabel}
+      onPointerDown={stopSeatDrag}
+      onMouseDown={stopSeatDrag}
+      onClick={stopSeatDrag}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && onEnter) {
+          e.preventDefault();
+          onEnter();
+        }
+      }}
+      onChange={(e) => {
+        const next = e.target.value;
+        if (next === '' || /^\d{0,2}$/.test(next)) onChange(next);
+      }}
+    />
+  );
+}
+
 function SortablePlayer({
   player,
   index,
@@ -58,11 +131,34 @@ function SortablePlayer({
   isPending,
   onLongPress,
   onForcePending,
-}: any) {
+  onUpdate,
+}: {
+  player: Player;
+  index: number;
+  isEditMode: boolean;
+  onDelete: (player: Player) => void;
+  isPending: boolean;
+  onLongPress: () => void;
+  onForcePending?: (player: Player) => void;
+  onUpdate: (player: Player, patch: Pick<Player, 'jersey' | 'position'>) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.uuid });
   const longPressTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasMoved = useRef(false);
   const startPosition = useRef<{ x: number; y: number } | null>(null);
+  const [jerseyText, setJerseyText] = useState(player.jersey != null ? String(player.jersey) : '');
+
+  const commitJersey = (raw: string) => {
+    setJerseyText(raw);
+    const jersey = parseJersey(raw);
+    if (raw.trim() === '') {
+      if (player.jersey != null) onUpdate(player, { jersey: undefined, position: player.position });
+      return;
+    }
+    if (jersey != null && jersey !== player.jersey) {
+      onUpdate(player, { jersey, position: player.position });
+    }
+  };
 
   // Handlers for long-press
   const handlePointerDown = (e: React.PointerEvent | React.TouchEvent) => {
@@ -111,7 +207,7 @@ function SortablePlayer({
 
   return (
     <div
-      style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}
+      className="roster-row"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -121,21 +217,39 @@ function SortablePlayer({
       onTouchEnd={handlePointerUp}
       onTouchCancel={handlePointerUp}
     >
-      {/* Player number outside the card */}
-      <span style={styles.playerNumber}>
+      <span className="roster-index">
         {player.number > 0 ? player.number : index + 1}
       </span>
-      <div style={{ width: 8 }} /> {/* Small gap */}
       <PlayerSeat
         ref={setNodeRef}
         gender={player.gender}
         name={player.name}
         pending={isPending}
+        jerseySlot={
+          <JerseyInput
+            value={jerseyText}
+            onChange={commitJersey}
+            ariaLabel={`Jersey number for ${player.name}`}
+          />
+        }
+        positionSlot={
+          <PositionSelect
+            value={player.position ?? ''}
+            onChange={(position) =>
+              onUpdate(player, {
+                jersey: player.jersey,
+                position: position || undefined,
+              })
+            }
+            ariaLabel={`Position for ${player.name}`}
+          />
+        }
         style={{
           opacity: isDragging ? 0.8 : 1,
           transform: CSS.Transform.toString(transform),
           transition,
           touchAction: 'none',
+          paddingRight: isEditMode ? 32 : undefined,
         }}
         {...attributes}
         {...listeners}
@@ -180,27 +294,36 @@ function AddGhostRow({
   gender,
   nextNumber,
   value,
+  jersey,
+  position,
   inputRef,
   onChange,
+  onJerseyChange,
+  onPositionChange,
   onSubmit,
 }: {
   gender: 'O' | 'W';
   nextNumber: number;
   value: string;
+  jersey: string;
+  position: PlayerPosition | '';
   inputRef: React.RefObject<HTMLInputElement | null>;
   onChange: (value: string) => void;
+  onJerseyChange: (value: string) => void;
+  onPositionChange: (value: PlayerPosition | '') => void;
   onSubmit: () => void;
 }) {
   const genderLabel = gender === 'O' ? 'Open' : 'Women';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}>
-      <span style={styles.playerNumber}>{nextNumber}</span>
-      <div style={{ width: 8 }} />
+    <div className="roster-row">
+      <span className="roster-index">{nextNumber}</span>
       <label
-        className={`player-seat player-seat--empty player-seat--${gender === 'O' ? 'open' : 'women'} player-seat-add`}
+        className={`player-seat player-seat-add player-seat--${gender === 'O' ? 'open' : 'women'}`}
       >
+        <span className="player-seat-add-plus" aria-hidden>+</span>
         <input
           ref={inputRef}
+          className="player-seat-add-name"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
@@ -212,6 +335,19 @@ function AddGhostRow({
           placeholder={`Add ${genderLabel.toLowerCase()}`}
           aria-label={`Add ${genderLabel.toLowerCase()} player`}
         />
+        <span className="player-seat-meta">
+          <JerseyInput
+            value={jersey}
+            onChange={onJerseyChange}
+            onEnter={onSubmit}
+            ariaLabel={`${genderLabel} jersey number`}
+          />
+          <PositionSelect
+            value={position}
+            onChange={onPositionChange}
+            ariaLabel={`${genderLabel} position`}
+          />
+        </span>
       </label>
     </div>
   );
@@ -228,9 +364,14 @@ function GenderRosterColumn({
   onDelete,
   onLongPress,
   onForcePending,
+  onUpdate,
   addValue,
+  addJersey,
+  addPosition,
   inputRef,
   onAddChange,
+  onAddJerseyChange,
+  onAddPositionChange,
   onAddSubmit,
 }: {
   gender: 'O' | 'W';
@@ -243,9 +384,14 @@ function GenderRosterColumn({
   onDelete: (player: Player) => void;
   onLongPress: () => void;
   onForcePending?: (player: Player) => void;
+  onUpdate: (player: Player, patch: { jersey?: number; position?: PlayerPosition }) => void;
   addValue: string;
+  addJersey: string;
+  addPosition: PlayerPosition | '';
   inputRef: React.RefObject<HTMLInputElement | null>;
   onAddChange: (value: string) => void;
+  onAddJerseyChange: (value: string) => void;
+  onAddPositionChange: (value: PlayerPosition | '') => void;
   onAddSubmit: () => void;
 }) {
   const first = players.slice(0, firstCount);
@@ -269,16 +415,19 @@ function GenderRosterColumn({
             isPending={isPending(player)}
             onLongPress={onLongPress}
             onForcePending={onForcePending}
+            onUpdate={onUpdate}
           />
         ))}
         {Array.from({ length: emptyCount }, (_, i) => (
-          <div key={`empty-${gender}-${i}`} style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ ...styles.playerNumber, opacity: 0.4 }}>{players.length + i + 1}</span>
-            <div style={{ width: 8 }} />
+          <div key={`empty-${gender}-${i}`} className="roster-row">
+            <span className="roster-index roster-index--empty">{players.length + i + 1}</span>
             <PlayerSeat gender={gender} empty />
           </div>
         ))}
         <div className={showLinePreview ? 'roster-section-rest' : undefined}>
+          {showLinePreview && rest.length > 0 && (
+            <div className="roster-section-label">Next in</div>
+          )}
           {showLinePreview && rest.map((player, index) => (
             <SortablePlayer
               key={player.uuid}
@@ -289,14 +438,19 @@ function GenderRosterColumn({
               isPending={isPending(player)}
               onLongPress={onLongPress}
               onForcePending={onForcePending}
+              onUpdate={onUpdate}
             />
           ))}
           <AddGhostRow
             gender={gender}
             nextNumber={players.length + 1}
             value={addValue}
+            jersey={addJersey}
+            position={addPosition}
             inputRef={inputRef}
             onChange={onAddChange}
+            onJerseyChange={onAddJerseyChange}
+            onPositionChange={onAddPositionChange}
             onSubmit={onAddSubmit}
           />
         </div>
@@ -433,6 +587,10 @@ export function PlayerManagerWeb({
   const [isEditMode, setIsEditMode] = useState(false);
   const [openDraft, setOpenDraft] = useState('');
   const [womenDraft, setWomenDraft] = useState('');
+  const [openJersey, setOpenJersey] = useState('');
+  const [womenJersey, setWomenJersey] = useState('');
+  const [openPosition, setOpenPosition] = useState<PlayerPosition | ''>('');
+  const [womenPosition, setWomenPosition] = useState<PlayerPosition | ''>('');
   const openInputRef = useRef<HTMLInputElement>(null);
   const womenInputRef = useRef<HTMLInputElement>(null);
 
@@ -506,19 +664,39 @@ export function PlayerManagerWeb({
   function handleAddPlayer(gender: 'O' | 'W') {
     const name = (gender === 'O' ? openDraft : womenDraft).trim();
     if (!name) return;
+    const jersey = parseJersey(gender === 'O' ? openJersey : womenJersey);
+    const position = gender === 'O' ? openPosition : womenPosition;
     onLateArrival({
       name,
       gender,
       uuid: crypto.randomUUID(),
       number: 0,
+      ...(jersey != null ? { jersey } : {}),
+      ...(position ? { position } : {}),
     });
     if (gender === 'O') {
       setOpenDraft('');
+      setOpenJersey('');
+      setOpenPosition('');
       openInputRef.current?.focus();
     } else {
       setWomenDraft('');
+      setWomenJersey('');
+      setWomenPosition('');
       womenInputRef.current?.focus();
     }
+  }
+
+  function handleUpdatePlayer(player: Player, patch: { jersey?: number; position?: PlayerPosition }) {
+    onRosterChange(
+      roster.map((p) => {
+        if (p.uuid !== player.uuid) return p;
+        const next: Player = { ...p, ...patch };
+        if (patch.jersey == null) delete next.jersey;
+        if (!patch.position) delete next.position;
+        return next;
+      })
+    );
   }
 
   const handleLongPress = () => setIsEditMode(true);
@@ -530,7 +708,7 @@ export function PlayerManagerWeb({
     [lineupSize, startingOpen, splitCycle]
   );
 
-  const shellTitle = gameStarted ? 'Roster' : isLineStep ? 'This game' : 'Roster';
+  const shellTitle = gameStarted ? 'Roster' : isLineStep ? 'Game setup' : 'Roster';
 
   return (
     <AppShell
@@ -566,6 +744,7 @@ export function PlayerManagerWeb({
         </>
       }
     >
+          <div className="roster-sheet">
           {gameStarted && pendingPlayers.length > 0 && (
             <div style={styles.pendingExplainer}>
               <strong style={{ color: COLORS.text }}>Pending</strong>
@@ -577,16 +756,18 @@ export function PlayerManagerWeb({
           )}
 
           {isRosterStep && (
-            <p style={styles.rosterHint}>
+            <p className="roster-hint">
               {usingSavedRoster
-                ? 'Default roster — add or reorder. You can add more later.'
-                : 'Add names. You can add more later.'}
+                ? 'Saved team roster — names, numbers, and positions. Next screen is only for this game.'
+                : 'Your team roster — names, numbers, and positions. Saved with this team.'}
             </p>
           )}
 
           {isLineStep && onLineupSizeChange && onStartingOpenChange && (
             <>
-              <p style={styles.rosterHint}>Who’s on the field this game. Lists below are the first point.</p>
+              <p className="roster-hint">
+                Line and rotation for this game. Drag to set order. Add anyone who isn’t on the roster.
+              </p>
               <LineSetup
                 lineupSize={lineupSize}
                 startingOpen={startingOpen}
@@ -599,7 +780,7 @@ export function PlayerManagerWeb({
           )}
 
           {gameStarted && (
-            <p style={styles.rosterHint}>Hold a name to remove. Subs are on the scoreboard.</p>
+            <p className="roster-hint">Hold a name to remove. Subs are on the scoreboard.</p>
           )}
 
           <div style={styles.rosterContainer}>
@@ -615,9 +796,14 @@ export function PlayerManagerWeb({
                 onDelete={handleDeletePlayer}
                 onLongPress={handleLongPress}
                 onForcePending={onForcePendingToRotation}
+                onUpdate={handleUpdatePlayer}
                 addValue={openDraft}
+                addJersey={openJersey}
+                addPosition={openPosition}
                 inputRef={openInputRef}
                 onAddChange={setOpenDraft}
+                onAddJerseyChange={setOpenJersey}
+                onAddPositionChange={setOpenPosition}
                 onAddSubmit={() => handleAddPlayer('O')}
               />
             </DndContext>
@@ -633,9 +819,14 @@ export function PlayerManagerWeb({
                 onDelete={handleDeletePlayer}
                 onLongPress={handleLongPress}
                 onForcePending={onForcePendingToRotation}
+                onUpdate={handleUpdatePlayer}
                 addValue={womenDraft}
+                addJersey={womenJersey}
+                addPosition={womenPosition}
                 inputRef={womenInputRef}
                 onAddChange={setWomenDraft}
+                onAddJerseyChange={setWomenJersey}
+                onAddPositionChange={setWomenPosition}
                 onAddSubmit={() => handleAddPlayer('W')}
               />
             </DndContext>
@@ -643,14 +834,15 @@ export function PlayerManagerWeb({
 
           {isRosterStep && (
             <button type="button" className="btn btn-primary kickoff-footer" onClick={onContinueToLine}>
-              Continue
+              Set up this game
             </button>
           )}
           {isLineStep && (
             <button type="button" className="btn btn-primary kickoff-footer" onClick={onReady}>
-              Ready
+              Start game
             </button>
           )}
+          </div>
     </AppShell>
   );
 }

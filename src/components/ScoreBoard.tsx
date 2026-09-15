@@ -508,7 +508,11 @@ export function ScoreBoard({
                 className="player-seat-row"
               >
                 {seat.kind === 'player' ? (
-                  <PlayerSeat gender={seat.player.gender} name={seat.player.name} />
+                  <PlayerSeat
+                    gender={seat.player.gender}
+                    name={seat.player.name}
+                    position={seat.player.position}
+                  />
                 ) : (
                   <PlayerSeat gender={seat.gender} empty />
                 )}
