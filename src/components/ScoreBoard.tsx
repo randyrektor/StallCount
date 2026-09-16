@@ -143,6 +143,8 @@ export function ScoreBoard({
   const nextSeats = getLineSeats(nextOpenQueue, nextWomanQueue, nextPattern);
 
   const scoreDiff = team1Score - team2Score;
+  const scoreDiffColor =
+    scoreDiff > 0 ? THEME.success : scoreDiff < 0 ? THEME.danger : COLORS.text;
 
   // Use the same window slices App passes as props (not only getLine), and match by
   // gender+name as well as uuid so roster rows still align if UUIDs ever diverge.
@@ -197,72 +199,6 @@ export function ScoreBoard({
     }, 300);
   };
 
-  // Robust mobile/desktop layout fixes
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 600;
-  // Remove debug border from player columns
-  const lineSectionStyle = {
-    ...styles.lineSection,
-    flex: '1 1 0%',
-    minWidth: 0,
-  };
-  const scoreStyle = {
-    ...styles.score,
-    fontSize: isMobile ? '32px' : styles.score.fontSize,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    width: '100%',
-    margin: '0 auto',
-    background: undefined,
-    borderRadius: '12px',
-    padding: '8px 0',
-  };
-
-  // Responsive team scores row
-  const teamScoresRowStyle = {
-    display: 'flex',
-    flexDirection: 'row' as const,
-    flexWrap: 'wrap' as const,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    width: '100%',
-    gap: isMobile ? '10px' : styles.scoreContainer.gap,
-  };
-  const teamScoreButtonStyle = {
-    ...styles.teamDisplay,
-    flex: 1,
-    width: '100%',
-    minWidth: undefined,
-    maxWidth: undefined,
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    minHeight: isMobile ? '50px' : styles.teamDisplay.minHeight,
-    padding: isMobile ? '8px 8px' : styles.teamDisplay.padding,
-    background: THEME.bgSubtle,
-    position: 'relative' as any,
-  };
-  const scoreDiffStyle = {
-    ...styles.scoreDiff,
-    fontSize: isMobile ? '24px' : '28px',
-    fontWeight: 700,
-    color: scoreDiff > 0 ? THEME.success : scoreDiff < 0 ? THEME.danger : COLORS.text,
-    minWidth: '36px',
-    textAlign: 'center' as const,
-    backgroundColor: THEME.bgInputSoft,
-    borderRadius: '8px',
-    padding: '0 8.5px',
-  };
-
-  // Make player columns always scale with browser width
-  const lineDisplayStyle = {
-    display: 'flex',
-    flexDirection: 'row' as const,
-    width: '100%',
-    flexWrap: 'nowrap' as const,
-    overflowX: 'visible' as const,
-    gap: isMobile ? '8px' : styles.lineDisplay.gap,
-  };
-
   // Add overlay style for flash effect
   const flashOverlayStyle = {
     position: 'absolute' as const,
@@ -314,7 +250,14 @@ export function ScoreBoard({
               Undo
             </button>
             <button className="btn btn-ghost" onClick={() => onOpenRoster?.()}>
-              {pendingCount > 0 ? `Roster · ${pendingCount} pending` : 'Roster'}
+              {pendingCount > 0 ? (
+                <>
+                  <span className="label-full">{`Roster · ${pendingCount} pending`}</span>
+                  <span className="label-short">{`Roster (${pendingCount})`}</span>
+                </>
+              ) : (
+                'Roster'
+              )}
             </button>
           </>
         ) : (
@@ -331,64 +274,33 @@ export function ScoreBoard({
         ) : null
       }
     >
-    <div style={styles.container}>
-      <div
-        style={{
-          ...styles.topBar,
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems: isMobile ? 'stretch' : 'center',
-          padding: isMobile ? '6px' : styles.topBar.padding,
-        }}
-      >
-        {/* Only the team scores row is forced side by side */}
-        <div style={teamScoresRowStyle}>
+    <div className="scoreboard">
+      <div className="score-top-bar">
+        <div className="score-teams">
           <button
-            style={{
-              ...teamScoreButtonStyle,
-              opacity: 1,
-              cursor: gameStarted ? 'pointer' : 'not-allowed',
-            }}
-            data-team="team1"
             className="score-tile"
+            data-team="team1"
             onClick={() => handleScoreClick('team1')}
             aria-disabled={!gameStarted}
+            style={{ opacity: 1, cursor: gameStarted ? 'pointer' : 'not-allowed' }}
           >
-            {/* Flash overlay for team 1 */}
             {flashTeam1 && <div style={flashOverlayStyle}></div>}
-            <h2 style={{
-              ...styles.teamName,
-              fontSize: isMobile ? '15px' : styles.teamName.fontSize,
-              marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
-              position: 'relative',
-              zIndex: 1,
-            }}>{team1Name}</h2>
-            <h1 className="score-num" style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team1Score}</h1>
+            <h2 className="score-team-name" style={{ position: 'relative', zIndex: 1 }}>{team1Name}</h2>
+            <h1 className="score-num" style={{ position: 'relative', zIndex: 1 }}>{team1Score}</h1>
           </button>
-          {/* Score diff only visible between scores on non-mobile */}
-          {!isMobile && (
-            <div style={scoreDiffStyle}>{scoreDiff !== 0 ? scoreDiff : '0'}</div>
-          )}
+          <div className="score-diff score-diff--between" style={{ color: scoreDiffColor }}>
+            {scoreDiff !== 0 ? scoreDiff : '0'}
+          </div>
           <button
-            style={{
-              ...teamScoreButtonStyle,
-              opacity: 1,
-              cursor: gameStarted ? 'pointer' : 'not-allowed',
-            }}
-            data-team="team2"
             className="score-tile"
+            data-team="team2"
             onClick={() => handleScoreClick('team2')}
             aria-disabled={!gameStarted}
+            style={{ opacity: 1, cursor: gameStarted ? 'pointer' : 'not-allowed' }}
           >
-            {/* Flash overlay for team 2 */}
             {flashTeam2 && <div style={flashOverlayStyle}></div>}
-            <h2 style={{
-              ...styles.teamName,
-              fontSize: isMobile ? '15px' : styles.teamName.fontSize,
-              marginBottom: isMobile ? '2px' : styles.teamName.marginBottom,
-              position: 'relative',
-              zIndex: 1,
-            }}>{team2Name}</h2>
-            <h1 className="score-num" style={{ ...scoreStyle, position: 'relative', zIndex: 1 }}>{team2Score}</h1>
+            <h2 className="score-team-name" style={{ position: 'relative', zIndex: 1 }}>{team2Name}</h2>
+            <h1 className="score-num" style={{ position: 'relative', zIndex: 1 }}>{team2Score}</h1>
           </button>
         </div>
       </div>
@@ -424,72 +336,31 @@ export function ScoreBoard({
         </div>
       )}
 
-      <div style={styles.lineInfo}>
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', width: '100%', position: 'relative' }}>
-          {/* Left: Point X */}
-          <div style={{ flex: '0 0 auto', minWidth: 70, textAlign: 'left' }}>
-            <span style={styles.lineInfoText}>Point {pointNumber}</span>
+      <div className="line-info">
+        <div className="line-info-row">
+          <div className="line-info-point">
+            <span>Point {pointNumber}</span>
           </div>
-          {/* Center: scoreDiff (absolutely centered in card, only on mobile) */}
-          {isMobile && (
-            <div style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 1,
-              pointerEvents: 'none',
-            }}>
-              <div style={{
-                ...styles.scoreDiff,
-                fontSize: '18px',
-                color: scoreDiff > 0 ? THEME.success : scoreDiff < 0 ? THEME.danger : COLORS.text,
-                margin: 0,
-                alignSelf: 'center',
-                display: 'inline-block',
-              }}>
-                {scoreDiff !== 0 ? scoreDiff : '0'}
-              </div>
-            </div>
-          )}
-          {/* Right: rotating pattern indicator */}
+          <div className="score-diff score-diff--center" style={{ color: scoreDiffColor }}>
+            {scoreDiff !== 0 ? scoreDiff : '0'}
+          </div>
           {splitCycle === 'ABBA' && isSplitCycleAvailable(lineupSize, startingOpen, 'ABBA') && (
-            <div style={{
-              position: 'absolute',
-              right: 0,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              minWidth: 120,
-              textAlign: 'right',
-              zIndex: 1,
-            }}>
-              <div style={styles.patternDisplay}>
+            <div className="line-info-pattern">
+              <div className="pattern-display">
                 {abbaPattern.map((p, i) => (
-                  <div key={i} style={{ ...styles.patternItem, ...(patternIndexAbba === i ? styles.patternItemActive : {}) }}>
-                    <span style={styles.patternText}>{p}</span>
+                  <div key={i} className={`pattern-item${patternIndexAbba === i ? ' is-active' : ''}`}>
+                    <span>{p}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
           {splitCycle === 'AAB' && isSplitCycleAvailable(lineupSize, startingOpen, 'AAB') && (
-            <div style={{
-              position: 'absolute',
-              right: 0,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              minWidth: 100,
-              textAlign: 'right',
-              zIndex: 1,
-            }}>
-              <div style={styles.patternDisplay}>
+            <div className="line-info-pattern">
+              <div className="pattern-display">
                 {aabPattern.map((p, i) => (
-                  <div key={i} style={{ ...styles.patternItem, ...(patternIndexAab === i ? styles.patternItemActive : {}) }}>
-                    <span style={styles.patternText}>{p}</span>
+                  <div key={i} className={`pattern-item${patternIndexAab === i ? ' is-active' : ''}`}>
+                    <span>{p}</span>
                   </div>
                 ))}
               </div>
@@ -497,11 +368,10 @@ export function ScoreBoard({
           )}
         </div>
       </div>
-      {/* Team columns always scale, never scroll */}
-      <div style={lineDisplayStyle}>
-        <div style={lineSectionStyle}>
-          <h3 style={styles.lineTitle}>Current Line</h3>
-          <div style={styles.playerListVertical}>
+      <div className="line-display">
+        <div className="line-section">
+          <h3 className="line-title">Current Line</h3>
+          <div className="player-list">
             {currentSeats.map((seat) => (
               <div
                 key={seat.kind === 'player' ? seat.player.uuid : seat.key}
@@ -534,9 +404,9 @@ export function ScoreBoard({
             ))}
           </div>
         </div>
-        <div style={lineSectionStyle}>
-          <h3 style={styles.lineTitle}>Next Line</h3>
-          <div style={styles.playerListVertical}>
+        <div className="line-section">
+          <h3 className="line-title">Next Line</h3>
+          <div className="player-list">
             {nextSeats.map((seat) =>
               seat.kind === 'player' ? (
                 <PlayerSeat

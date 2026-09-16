@@ -11,6 +11,7 @@ import {
   isSplitCycleAvailable,
   getGenderPattern,
 } from '../utils/rotationHelpers';
+import { parseRosterText, rosterToCsv, type ParsedRosterRow } from '../utils/rosterImport';
 
 const COLORS = {
   background: THEME.bgPage,
@@ -36,7 +37,6 @@ interface PlayerManagerWebProps {
   onForcePendingToRotation?: (player: Player) => void;
   gameStarted?: boolean;
   setupStep?: 'roster' | 'line';
-  usingSavedRoster?: boolean;
   onOpenScoreboard?: () => void;
   onContinueToLine?: () => void;
   onReady?: () => void;
@@ -48,6 +48,7 @@ interface PlayerManagerWebProps {
   onLineupSizeChange?: (size: LineupSize) => void;
   onStartingOpenChange?: (open: number) => void;
   onSplitCycleChange?: (cycle: SplitCycle) => void;
+  onImportPlayers?: (rows: ParsedRosterRow[]) => { added: number; skipped: number };
 }
 
 function stopSeatDrag(e: React.SyntheticEvent) {
@@ -398,62 +399,67 @@ function GenderRosterColumn({
   const rest = players.slice(firstCount);
   const emptyCount = showLinePreview ? Math.max(0, firstCount - players.length) : 0;
   const isPending = (player: Player) => pendingPlayers.some((p) => p.uuid === player.uuid);
-  const queue = showLinePreview ? first : players;
+
+  const addRow = (
+    <AddGhostRow
+      gender={gender}
+      nextNumber={players.length + 1}
+      value={addValue}
+      jersey={addJersey}
+      position={addPosition}
+      inputRef={inputRef}
+      onChange={onAddChange}
+      onJerseyChange={onAddJerseyChange}
+      onPositionChange={onAddPositionChange}
+      onSubmit={onAddSubmit}
+    />
+  );
+
+  const playerRows = (list: Player[], startIndex: number) =>
+    list.map((player, index) => (
+      <SortablePlayer
+        key={player.uuid}
+        player={player}
+        index={startIndex + index}
+        isEditMode={isEditMode}
+        onDelete={onDelete}
+        isPending={isPending(player)}
+        onLongPress={onLongPress}
+        onForcePending={onForcePending}
+        onUpdate={onUpdate}
+      />
+    ));
 
   return (
     <div style={styles.rosterColumn}>
-      <h3 style={styles.rosterTitle}>{title}</h3>
+      <h3 className="roster-column-title">{title}</h3>
       <SortableContext items={players.map((p) => p.uuid)} strategy={verticalListSortingStrategy}>
-        {showLinePreview && <div className="roster-section-label">First line</div>}
-        {queue.map((player, index) => (
-          <SortablePlayer
-            key={player.uuid}
-            player={player}
-            index={index}
-            isEditMode={isEditMode}
-            onDelete={onDelete}
-            isPending={isPending(player)}
-            onLongPress={onLongPress}
-            onForcePending={onForcePending}
-            onUpdate={onUpdate}
-          />
-        ))}
-        {Array.from({ length: emptyCount }, (_, i) => (
-          <div key={`empty-${gender}-${i}`} className="roster-row">
-            <span className="roster-index roster-index--empty">{players.length + i + 1}</span>
-            <PlayerSeat gender={gender} empty />
-          </div>
-        ))}
-        <div className={showLinePreview ? 'roster-section-rest' : undefined}>
-          {showLinePreview && rest.length > 0 && (
-            <div className="roster-section-label">Next in</div>
-          )}
-          {showLinePreview && rest.map((player, index) => (
-            <SortablePlayer
-              key={player.uuid}
-              player={player}
-              index={firstCount + index}
-              isEditMode={isEditMode}
-              onDelete={onDelete}
-              isPending={isPending(player)}
-              onLongPress={onLongPress}
-              onForcePending={onForcePending}
-              onUpdate={onUpdate}
-            />
-          ))}
-          <AddGhostRow
-            gender={gender}
-            nextNumber={players.length + 1}
-            value={addValue}
-            jersey={addJersey}
-            position={addPosition}
-            inputRef={inputRef}
-            onChange={onAddChange}
-            onJerseyChange={onAddJerseyChange}
-            onPositionChange={onAddPositionChange}
-            onSubmit={onAddSubmit}
-          />
-        </div>
+        {showLinePreview ? (
+          <>
+            <div className="roster-line-band">
+              <div className="roster-section-label">First line</div>
+              {playerRows(first, 0)}
+              {Array.from({ length: emptyCount }, (_, i) => (
+                <div key={`empty-${gender}-${i}`} className="roster-row">
+                  <span className="roster-index roster-index--empty">{players.length + i + 1}</span>
+                  <PlayerSeat gender={gender} empty />
+                </div>
+              ))}
+            </div>
+            {rest.length > 0 && (
+              <div className="roster-line-band">
+                <div className="roster-section-label">Next line</div>
+                {playerRows(rest, firstCount)}
+              </div>
+            )}
+            {addRow}
+          </>
+        ) : (
+          <>
+            {playerRows(players, 0)}
+            {addRow}
+          </>
+        )}
       </SortableContext>
     </div>
   );
@@ -461,7 +467,7 @@ function GenderRosterColumn({
 
 const LINEUP_SIZE_OPTIONS: LineupSize[] = [4, 5, 6, 7];
 const CYCLE_OPTIONS: { label: string; value: SplitCycle }[] = [
-  { label: 'Same', value: 'same' },
+  { label: 'Repeating', value: 'same' },
   { label: 'ABBA', value: 'ABBA' },
   { label: 'AAB', value: 'AAB' },
 ];
@@ -495,65 +501,69 @@ function LineSetup({
 
   return (
     <div className="line-setup">
-      <div className="line-setup-group">
-        <span className="line-setup-label">Players per point</span>
-        <div className="line-setup-pills">
-          {LINEUP_SIZE_OPTIONS.map((n) => (
-            <button
-              key={n}
-              type="button"
-              className={`line-setup-pill${lineupSize === n ? ' is-active' : ''}`}
-              onClick={() => setSize(n)}
-            >
-              {n}
-            </button>
-          ))}
+      <div className="line-setup-primary">
+        <div className="line-setup-group">
+          <span className="line-setup-label">Players per point</span>
+          <div className="line-setup-pills">
+            {LINEUP_SIZE_OPTIONS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={`line-setup-pill${lineupSize === n ? ' is-active' : ''}`}
+                onClick={() => setSize(n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="line-setup-group">
-        <span className="line-setup-label">Starting split</span>
-        <div className="line-setup-split">
-          <button
-            type="button"
-            className="line-setup-pill line-setup-pill--open"
-            disabled={openCount >= lineupSize}
-            aria-label="+ Open"
-            onClick={() => onStartingOpenChange(Math.min(lineupSize, openCount + 1))}
-          >
-            + Open
-          </button>
-          <span className="line-setup-ratio">{openCount}:{womenCount}</span>
-          <button
-            type="button"
-            className="line-setup-pill line-setup-pill--women"
-            disabled={openCount <= 0}
-            aria-label="+ Women"
-            onClick={() => onStartingOpenChange(Math.max(0, openCount - 1))}
-          >
-            + Women
-          </button>
+        <div className="line-setup-group">
+          <span className="line-setup-label">Starting split</span>
+          <div className="line-setup-split">
+            <button
+              type="button"
+              className="line-setup-pill line-setup-pill--open"
+              disabled={openCount >= lineupSize}
+              aria-label="+ Open"
+              onClick={() => onStartingOpenChange(Math.min(lineupSize, openCount + 1))}
+            >
+              + Open
+            </button>
+            <span className="line-setup-ratio">{openCount}:{womenCount}</span>
+            <button
+              type="button"
+              className="line-setup-pill line-setup-pill--women"
+              disabled={openCount <= 0}
+              aria-label="+ Women"
+              onClick={() => onStartingOpenChange(Math.max(0, openCount - 1))}
+            >
+              + Women
+            </button>
+          </div>
         </div>
       </div>
       {onSplitCycleChange && (
-        <div className="line-setup-group">
-          <span className="line-setup-label">Cycle</span>
-          <div className="line-setup-pills">
-            {CYCLE_OPTIONS.map((opt) => {
-              const locked = !isSplitCycleAvailable(lineupSize, openCount, opt.value);
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={`line-setup-pill${splitCycle === opt.value ? ' is-active' : ''}`}
-                  disabled={locked}
-                  onClick={() => {
-                    if (!locked) onSplitCycleChange(opt.value);
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
+        <div className="line-setup-secondary">
+          <div className="line-setup-group">
+            <span className="line-setup-label">Cycle</span>
+            <div className="line-setup-pills">
+              {CYCLE_OPTIONS.map((opt) => {
+                const locked = !isSplitCycleAvailable(lineupSize, openCount, opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`line-setup-pill${splitCycle === opt.value ? ' is-active' : ''}`}
+                    disabled={locked}
+                    onClick={() => {
+                      if (!locked) onSplitCycleChange(opt.value);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -571,7 +581,6 @@ export function PlayerManagerWeb({
   onForcePendingToRotation,
   gameStarted = false,
   setupStep = 'roster',
-  usingSavedRoster = false,
   onOpenScoreboard,
   onContinueToLine,
   onReady,
@@ -583,6 +592,7 @@ export function PlayerManagerWeb({
   onLineupSizeChange,
   onStartingOpenChange,
   onSplitCycleChange,
+  onImportPlayers,
 }: PlayerManagerWebProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [openDraft, setOpenDraft] = useState('');
@@ -591,6 +601,10 @@ export function PlayerManagerWeb({
   const [womenJersey, setWomenJersey] = useState('');
   const [openPosition, setOpenPosition] = useState<PlayerPosition | ''>('');
   const [womenPosition, setWomenPosition] = useState<PlayerPosition | ''>('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importMessage, setImportMessage] = useState('');
+  const importFileRef = useRef<HTMLInputElement>(null);
   const openInputRef = useRef<HTMLInputElement>(null);
   const womenInputRef = useRef<HTMLInputElement>(null);
 
@@ -687,6 +701,34 @@ export function PlayerManagerWeb({
     }
   }
 
+  function applyImportText(text: string) {
+    if (!onImportPlayers) return;
+    const { players, errors } = parseRosterText(text);
+    if (players.length === 0) {
+      setImportMessage(errors[0] || 'No players found. Use: Name, O or W');
+      return;
+    }
+    const result = onImportPlayers(players);
+    const extra = errors.length ? ` (${errors.length} row${errors.length === 1 ? '' : 's'} skipped)` : '';
+    setImportMessage(
+      `Added ${result.added}. ${result.skipped} already on the roster.${extra}`
+    );
+    setImportText('');
+  }
+
+  function handleExportRoster() {
+    const csv = rosterToCsv(roster);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'roster.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function handleUpdatePlayer(player: Player, patch: { jersey?: number; position?: PlayerPosition }) {
     onRosterChange(
       roster.map((p) => {
@@ -744,7 +786,7 @@ export function PlayerManagerWeb({
         </>
       }
     >
-          <div className="roster-sheet">
+          <div className={`roster-sheet${isLineStep ? ' roster-sheet--line' : ''}`}>
           {gameStarted && pendingPlayers.length > 0 && (
             <div style={styles.pendingExplainer}>
               <strong style={{ color: COLORS.text }}>Pending</strong>
@@ -755,35 +797,18 @@ export function PlayerManagerWeb({
             </div>
           )}
 
-          {isRosterStep && (
-            <p className="roster-hint">
-              {usingSavedRoster
-                ? 'Saved team roster — names, numbers, and positions. Next screen is only for this game.'
-                : 'Your team roster — names, numbers, and positions. Saved with this team.'}
-            </p>
-          )}
-
           {isLineStep && onLineupSizeChange && onStartingOpenChange && (
-            <>
-              <p className="roster-hint">
-                Line and rotation for this game. Drag to set order. Add anyone who isn’t on the roster.
-              </p>
-              <LineSetup
-                lineupSize={lineupSize}
-                startingOpen={startingOpen}
-                splitCycle={splitCycle}
-                onLineupSizeChange={onLineupSizeChange}
-                onStartingOpenChange={onStartingOpenChange}
-                onSplitCycleChange={onSplitCycleChange}
-              />
-            </>
+            <LineSetup
+              lineupSize={lineupSize}
+              startingOpen={startingOpen}
+              splitCycle={splitCycle}
+              onLineupSizeChange={onLineupSizeChange}
+              onStartingOpenChange={onStartingOpenChange}
+              onSplitCycleChange={onSplitCycleChange}
+            />
           )}
 
-          {gameStarted && (
-            <p className="roster-hint">Hold a name to remove. Subs are on the scoreboard.</p>
-          )}
-
-          <div style={styles.rosterContainer}>
+          <div className="roster-board">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handlePlayerDragStart} onDragEnd={(e) => handlePlayerDragEnd(e, 'O')}>
               <GenderRosterColumn
                 gender="O"
@@ -831,6 +856,68 @@ export function PlayerManagerWeb({
               />
             </DndContext>
           </div>
+
+          {onImportPlayers && (isRosterStep || gameStarted) && (
+            <div className="roster-import">
+              <div className="roster-import-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setImportOpen((v) => !v)}
+                >
+                  {importOpen ? 'Hide import' : 'Import roster'}
+                </button>
+                {roster.length > 0 && (
+                  <button type="button" className="btn btn-ghost" onClick={handleExportRoster}>
+                    Export CSV
+                  </button>
+                )}
+              </div>
+              {importOpen && (
+                <div className="roster-import-panel">
+                  <p className="roster-import-hint">
+                    One player per line: <code>Name, O</code> or <code>Name, W, 12, handler</code>
+                  </p>
+                  <textarea
+                    className="roster-import-textarea"
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                    rows={6}
+                    placeholder={'Alex, O, 7, handler\nSam, W\nRiley, women, 12, cutter'}
+                  />
+                  <div className="roster-import-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => applyImportText(importText)}
+                    >
+                      Add to roster
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => importFileRef.current?.click()}
+                    >
+                      From file
+                    </button>
+                    <input
+                      ref={importFileRef}
+                      type="file"
+                      accept=".csv,.txt,text/csv,text/plain"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        file.text().then(applyImportText);
+                      }}
+                    />
+                  </div>
+                  {importMessage ? <p className="roster-import-status">{importMessage}</p> : null}
+                </div>
+              )}
+            </div>
+          )}
 
           {isRosterStep && (
             <button type="button" className="btn btn-primary kickoff-footer" onClick={onContinueToLine}>
@@ -996,14 +1083,6 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     minWidth: 0,
     overflow: 'visible',
-  },
-  rosterTitle: {
-    color: COLORS.text,
-    marginTop: 0,
-    marginBottom: '10px',
-    textAlign: 'center',
-    width: '100%',
-    display: 'block',
   },
   playerRow: {
     display: 'flex',

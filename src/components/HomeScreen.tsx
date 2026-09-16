@@ -50,7 +50,7 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
   return (
     <AppShell showHeader={false} width="narrow" center>
       <div className="shell-card">
-          <h1 style={styles.title}>Ultimate Frisbee</h1>
+          <h1 className="home-title" style={styles.title}>Ultimate Frisbee</h1>
           <p style={styles.subtitle}>Score tracker</p>
           
           <div style={styles.inputSection}>
@@ -123,7 +123,6 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: 'blur(10px)',
   },
   title: {
-    fontSize: '32px',
     fontWeight: 800,
     color: THEME.text,
     textAlign: 'center',

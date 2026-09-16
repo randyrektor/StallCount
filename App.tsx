@@ -5,7 +5,7 @@ import { PlayerManager } from './src/components/PlayerManager';
 import { ScoreBoard } from './src/components/ScoreBoard';
 import { SettingsModal } from './src/components/SettingsModal';
 import { HomeScreen } from './src/components/HomeScreen';
-import { getLine, getWrapped } from './src/utils/lineRotation';
+import { getWrapped } from './src/utils/lineRotation';
 import {
   applySubstitutionToQueue,
   mergeRosterFromGenderQueues,
@@ -25,6 +25,10 @@ import {
 } from './src/utils/rosterManagerLogic';
 import { COLORS } from './src/constants';
 import { loadRosterForTeam, saveRosterForTeam } from './src/utils/rosterStorage';
+import { mergeImportedPlayers, type ParsedRosterRow } from './src/utils/rosterImport';
+import { loadGameSession, saveGameSession, clearGameSession } from './src/utils/gameSession';
+import { parseSpectatorHash, type SpectatorSnapshot } from './src/utils/spectatorState';
+import { SpectatorScreen } from './src/components/SpectatorScreen';
 import { AppShell } from './src/components/AppShell';
 
 // No hardcoded roster - players are added each game
@@ -82,9 +86,9 @@ function readStartingOpen(size: LineupSize): number {
 export default function App() {
   const prevLineIndexRef = useRef(0);
   const [showHomeScreen, setShowHomeScreen] = useState<boolean | null>(null); // null = loading
+  const [sessionReady, setSessionReady] = useState(false);
   const [showRoster, setShowRoster] = useState(false);
   const [setupStep, setSetupStep] = useState<'roster' | 'line'>('roster');
-  const [usingSavedRoster, setUsingSavedRoster] = useState(false);
   const [team1Name, setTeam1Name] = useState('');
   const [team2Name, setTeam2Name] = useState('Away');
   const [team1Score, setTeam1Score] = useState(0);
@@ -110,15 +114,51 @@ export default function App() {
   // Track rotation index for men and women
   const [openIndex, setOpenIndex] = useState(0);
   const [womenIndex, setWomenIndex] = useState(0);
+  const [spectator, setSpectator] = useState<SpectatorSnapshot | null>(() =>
+    typeof window === 'undefined' ? null : parseSpectatorHash(window.location.hash)
+  );
 
-  // Load team name from localStorage on mount
   useEffect(() => {
+    const onHash = () => setSpectator(parseSpectatorHash(window.location.hash));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // Load team name from localStorage on mount; resume an in-progress game if present.
+  useEffect(() => {
+    const session = loadGameSession();
+    if (session) {
+      setTeam1Name(session.team1Name);
+      setTeam2Name(session.team2Name);
+      setTeam1Score(session.team1Score);
+      setTeam2Score(session.team2Score);
+      setRoster(session.roster);
+      setMasterOpenQueue(session.masterOpenQueue);
+      setMasterWomenQueue(session.masterWomenQueue);
+      setPendingPlayers(session.pendingPlayers);
+      setGameStarted(session.gameStarted);
+      setLineIndex(session.lineIndex);
+      setPointNumber(session.pointNumber);
+      setOpenIndex(session.openIndex);
+      setWomenIndex(session.womenIndex);
+      setScoreHistory(session.scoreHistory);
+      setLineupSize(session.lineupSize);
+      setStartingOpen(session.startingOpen);
+      setSplitCycle(session.splitCycle);
+      setShowRoster(session.showRoster);
+      setSetupStep(session.setupStep);
+      setShowHomeScreen(false);
+      prevLineIndexRef.current = session.lineIndex;
+      setShowHomeScreen(false);
+      setSessionReady(true);
+      return;
+    }
+
     const savedTeams = localStorage.getItem('ultimate-teams');
     if (savedTeams) {
       try {
         const teams = JSON.parse(savedTeams);
         if (teams.length > 0) {
-          // Don't auto-load anymore - always show home screen
           setShowHomeScreen(true);
         } else {
           setShowHomeScreen(true);
@@ -130,6 +170,7 @@ export default function App() {
     } else {
       setShowHomeScreen(true);
     }
+    setSessionReady(true);
   }, []);
 
   const resetScoreboardForNewSession = useCallback(() => {
@@ -143,6 +184,7 @@ export default function App() {
     setPendingPlayers([]);
     setGameStarted(false);
     prevLineIndexRef.current = 0;
+    clearGameSession();
   }, []);
 
   const applyNewGameRoster = useCallback((newRoster: Player[]) => {
@@ -164,12 +206,26 @@ export default function App() {
     applyNewGameRoster(loaded);
     setShowRoster(true);
     setSetupStep('roster');
-    setUsingSavedRoster(loaded.length > 0);
   };
 
   const handleKickoff = () => {
     setGameStarted(true);
     setShowRoster(false);
+  };
+
+  const handleImportPlayers = (rows: ParsedRosterRow[]) => {
+    const { roster: next, added, skipped } = mergeImportedPlayers(roster, rows);
+    if (added.length === 0) return { added: 0, skipped };
+    setRoster(next);
+    if (!gameStarted) {
+      const openPlayers = next.filter((p) => p.gender === 'O');
+      const womenPlayers = next.filter((p) => p.gender === 'W');
+      setMasterOpenQueue(openPlayers);
+      setMasterWomenQueue(womenPlayers);
+    } else {
+      setPendingPlayers((prev) => [...prev, ...added]);
+    }
+    return { added: added.length, skipped };
   };
 
   const handleChangeTeam = () => {
@@ -183,18 +239,6 @@ export default function App() {
     (idx: number) => getGenderPattern(idx, lineupSize, startingOpen, splitCycle),
     [lineupSize, startingOpen, splitCycle]
   );
-
-  // Web-compatible orientation lock (CSS-based)
-  useEffect(() => {
-    const lockOrientation = () => {
-      try {
-        document.documentElement.style.setProperty('--orientation', 'landscape');
-      } catch (error) {
-        console.error('Error setting orientation:', error);
-      }
-    };
-    lockOrientation();
-  }, []);
 
   // Apply + persist the active theme. CSS vars in global.css respond to data-theme.
   useEffect(() => {
@@ -225,6 +269,19 @@ export default function App() {
   
   const currentOpenQueue = getWrapped(masterOpenQueue, normalizedOpenIndex, currentPattern.men);
   const currentWomanQueue = getWrapped(masterWomenQueue, normalizedWomenIndex, currentPattern.women);
+  const nextPattern = getPattern(lineIndex + 1);
+  const nextOpenQueue = getWrapped(
+    masterOpenQueue,
+    openIndex + currentPattern.men,
+    nextPattern.men
+  );
+  const nextWomanQueue = getWrapped(
+    masterWomenQueue,
+    womenIndex + currentPattern.women,
+    nextPattern.women
+  );
+  const currentLine = [...currentOpenQueue, ...currentWomanQueue];
+  const nextLine = [...nextOpenQueue, ...nextWomanQueue];
 
   const handleTeam1ScoreChange = (newScore: number) => {
     if (!gameStarted) return;
@@ -458,21 +515,8 @@ export default function App() {
     }
   }, [lineIndex, openIndex, womenIndex, pointNumber, startingOpen, lineupSize, splitCycle]);
 
-  // Add effect to handle gender ratio mode changes
-  useEffect(() => {
-    // When gender ratio mode changes, update the master queues with the current roster order
-    const newOpenPlayers = roster.filter(p => p.gender === 'O');
-    const newWomenPlayers = roster.filter(p => p.gender === 'W');
-    
-    // Calculate new indices to maintain the same relative position
-    const newOpenIndex = Math.min(openIndex, newOpenPlayers.length - 1);
-    const newWomenIndex = Math.min(womenIndex, newWomenPlayers.length - 1);
-    
-    setMasterOpenQueue(newOpenPlayers);
-    setMasterWomenQueue(newWomenPlayers);
-    setOpenIndex(newOpenIndex);
-    setWomenIndex(newWomenIndex);
-  }, [startingOpen, lineupSize, splitCycle]);
+  // Changing players-per-point or gender split only changes window *length*.
+  // Keep openIndex / womenIndex (next-on) exactly where they are.
 
   // Roster order follows master queues + extras (pending / edge); keeps subs and queue-only updates in sync.
   useEffect(() => {
@@ -497,6 +541,66 @@ export default function App() {
     saveRosterForTeam(key, roster);
   }, [roster, team1Name, showHomeScreen]);
 
+  useEffect(() => {
+    if (!sessionReady || showHomeScreen) return;
+    saveGameSession({
+      v: 1,
+      team1Name,
+      team2Name,
+      team1Score,
+      team2Score,
+      roster,
+      masterOpenQueue,
+      masterWomenQueue,
+      pendingPlayers,
+      gameStarted,
+      lineIndex,
+      pointNumber,
+      openIndex,
+      womenIndex,
+      scoreHistory,
+      lineupSize,
+      startingOpen,
+      splitCycle,
+      showRoster,
+      setupStep,
+    });
+  }, [
+    sessionReady,
+    showHomeScreen,
+    team1Name,
+    team2Name,
+    team1Score,
+    team2Score,
+    roster,
+    masterOpenQueue,
+    masterWomenQueue,
+    pendingPlayers,
+    gameStarted,
+    lineIndex,
+    pointNumber,
+    openIndex,
+    womenIndex,
+    scoreHistory,
+    lineupSize,
+    startingOpen,
+    splitCycle,
+    showRoster,
+    setupStep,
+  ]);
+
+  if (spectator) {
+    return (
+      <SpectatorScreen
+        snapshot={spectator}
+        onLeave={() => {
+          window.location.hash = '';
+          setSpectator(null);
+        }}
+      />
+    );
+  }
+
   // Show loading state briefly while checking localStorage
   if (showHomeScreen === null) {
     return <AppShell showHeader={false} />;
@@ -516,7 +620,6 @@ export default function App() {
           pendingPlayers={pendingPlayers}
           gameStarted={gameStarted}
           setupStep={setupStep}
-          usingSavedRoster={usingSavedRoster}
           masterOpenQueue={masterOpenQueue}
           masterWomenQueue={masterWomenQueue}
           onForcePendingToRotation={handleForcePendingToRotation}
@@ -540,6 +643,7 @@ export default function App() {
           }}
           onStartingOpenChange={setStartingOpen}
           onSplitCycleChange={setSplitCycle}
+          onImportPlayers={handleImportPlayers}
         />
       ) : (
         <ScoreBoard
@@ -569,8 +673,8 @@ export default function App() {
           roster={roster}
           openQueue={currentOpenQueue}
           womanQueue={currentWomanQueue}
-          nextOpenQueue={getWrapped(masterOpenQueue, openIndex + getPattern(lineIndex).men, getPattern(lineIndex + 1).men)}
-          nextWomanQueue={getWrapped(masterWomenQueue, womenIndex + getPattern(lineIndex).women, getPattern(lineIndex + 1).women)}
+          nextOpenQueue={nextOpenQueue}
+          nextWomanQueue={nextWomanQueue}
           scoreHistory={scoreHistory}
           gameStarted={gameStarted}
           onKickoff={handleKickoff}
@@ -601,11 +705,13 @@ export default function App() {
         team2Score={team2Score}
         pointNumber={pointNumber}
         lineIndex={lineIndex}
-        currentLine={getLine(currentOpenQueue, currentWomanQueue, getPattern(lineIndex), normalizedOpenIndex, normalizedWomenIndex)}
+        currentLine={currentLine}
+        nextLine={nextLine}
         pendingPlayers={pendingPlayers}
         roster={roster}
         masterOpenQueue={masterOpenQueue}
         masterWomenQueue={masterWomenQueue}
+        scoreHistory={scoreHistory}
       />
     </>
   );

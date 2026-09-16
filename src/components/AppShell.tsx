@@ -32,7 +32,7 @@ export function AppShell({
   const bodyInner = `app-shell-inner app-shell-inner--${width}`;
   const headerInner = 'app-shell-inner app-shell-inner--wide';
   return (
-    <div className="app-shell">
+    <div className={`app-shell${showHeader ? '' : ' app-shell--no-header'}`}>
       <GradientBlobs />
       {showHeader && (
         <header className="app-shell-header">

@@ -48,6 +48,10 @@ export function getCycleLengthForMode(cycle: SplitCycle): number {
  * Open / women-matching counts for the line at this point.
  * `startingOpen` is open players on the A line (first point of the cycle).
  * B (when cycling) is the mirror: open and women swapped.
+ *
+ * Mid-game changes to lineupSize / startingOpen / cycle only change these counts.
+ * Rotation indices (next-on) must stay put so the same window start remains on
+ * the field; extra seats come from the next players in each gender queue.
  */
 export function getGenderPattern(
   lineIndex: number,
