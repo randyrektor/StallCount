@@ -453,6 +453,13 @@ input:focus {
   color: var(--text-muted);
 }
 
+.line-setup-optional {
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  opacity: 0.8;
+}
+
 .line-setup-pills,
 .line-setup-split {
   display: flex;
@@ -544,6 +551,92 @@ input:focus {
   display: none;
 }
 
+.game-clock-input {
+  width: 8.25rem;
+  min-width: 8.25rem;
+  text-align: left;
+  padding: 0 8px;
+  color-scheme: dark;
+}
+
+[data-theme='light'] .game-clock-input {
+  color-scheme: light;
+}
+
+.line-setup-clocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+}
+
+.line-setup-clock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.settings-clocks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.clock-reminder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-card);
+}
+
+.clock-reminder--now {
+  border-color: var(--accent-open);
+}
+
+.clock-reminder-copy {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.clock-reminder-dismiss {
+  appearance: none;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.spectator-clock-note {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.spectator-clock-note--now {
+  color: var(--text);
+}
+
 .roster-column-title {
   color: var(--text);
   margin: 0 0 10px;
@@ -583,12 +676,14 @@ input:focus {
   position: relative;
   isolation: isolate;
   z-index: 0;
+  padding: 10px 12px 12px;
+  box-sizing: border-box;
 }
 
 .roster-line-band::before {
   content: '';
   position: absolute;
-  inset: -4px -8px;
+  inset: 0;
   background: var(--bg-elevated);
   border-radius: 12px;
   z-index: -1;
@@ -597,7 +692,7 @@ input:focus {
 
 .roster-line-band + .roster-line-band,
 .roster-line-band + .roster-row {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .roster-line-band > .roster-row:last-child {
@@ -1007,6 +1102,7 @@ input:focus {
   color: var(--text-muted);
   font-weight: 600;
   box-shadow: none;
+  cursor: pointer;
 }
 
 .player-seat--empty .player-seat-name {
@@ -1057,17 +1153,33 @@ input:focus {
 }
 
 .player-seat-add-plus {
+  position: relative;
   flex-shrink: 0;
   width: 22px;
   height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   border-radius: 50%;
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1;
   color: var(--text-on-accent);
+}
+
+.player-seat-add-plus::before,
+.player-seat-add-plus::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: currentColor;
+  border-radius: 1px;
+}
+
+.player-seat-add-plus::before {
+  width: 10px;
+  height: 2px;
+}
+
+.player-seat-add-plus::after {
+  width: 2px;
+  height: 10px;
 }
 
 .player-seat-add.player-seat--open .player-seat-add-plus {
@@ -1240,45 +1352,17 @@ input:focus {
   color: var(--accent-open);
 }
 
-.spectator-score-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
+.spectator-score-bar {
+  margin-bottom: 0;
 }
 
-.spectator-team {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
+.spectator-card .score-tile {
+  cursor: default;
 }
 
-.spectator-team--right {
-  text-align: right;
-  align-items: flex-end;
-}
-
-.spectator-name {
-  font-size: clamp(15px, 3.6vw, 22px);
-  font-weight: 700;
-  color: var(--text-secondary);
-  overflow-wrap: anywhere;
-}
-
-.spectator-score {
-  font-size: clamp(56px, 18vw, 104px);
-  font-weight: 800;
-  line-height: 0.9;
-  letter-spacing: -0.04em;
-  color: var(--text);
-}
-
-.spectator-dash {
-  font-size: clamp(28px, 8vw, 48px);
-  color: var(--text-muted);
-  padding-bottom: 6px;
+.spectator-card .score-num {
+  font-size: clamp(48px, 12vw, 80px);
+  padding: 2px 0 0;
 }
 
 .spectator-line-info {
@@ -1303,25 +1387,35 @@ input:focus {
 
 .spectator-split-chips {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .spectator-chip {
-  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 14px 12px;
+  gap: 4px;
+  padding: 12px 8px;
   border-radius: 12px;
-  font-size: 16px;
   font-weight: 700;
+  text-align: center;
 }
 
 .spectator-chip strong {
-  font-size: 28px;
+  font-size: clamp(24px, 4.5vw, 32px);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.spectator-chip-label {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .spectator-chip--open {

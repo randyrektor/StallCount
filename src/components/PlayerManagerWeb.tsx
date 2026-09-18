@@ -13,7 +13,9 @@ import {
 } from '../utils/rotationHelpers';
 import { parseRosterText, rosterToCsv, type ParsedRosterRow } from '../utils/rosterImport';
 import { type SoftPointCap } from '../utils/softCap';
+import { type GameClockTime } from '../utils/gameClock';
 import { SoftCapInput } from './SoftCapInput';
+import { GameClockInput } from './GameClockInput';
 
 const COLORS = {
   background: THEME.bgPage,
@@ -52,6 +54,10 @@ interface PlayerManagerWebProps {
   onSplitCycleChange?: (cycle: SplitCycle) => void;
   softCap?: SoftPointCap;
   onSoftCapChange?: (cap: SoftPointCap) => void;
+  halfAt?: GameClockTime;
+  onHalfAtChange?: (time: GameClockTime) => void;
+  endAt?: GameClockTime;
+  onEndAtChange?: (time: GameClockTime) => void;
   onImportPlayers?: (rows: ParsedRosterRow[]) => { added: number; skipped: number };
 }
 
@@ -325,7 +331,7 @@ function AddGhostRow({
       <label
         className={`player-seat player-seat-add player-seat--${gender === 'O' ? 'open' : 'women'}`}
       >
-        <span className="player-seat-add-plus" aria-hidden>+</span>
+        <span className="player-seat-add-plus" aria-hidden />
         <input
           ref={inputRef}
           className="player-seat-add-name"
@@ -446,7 +452,19 @@ function GenderRosterColumn({
               {Array.from({ length: emptyCount }, (_, i) => (
                 <div key={`empty-${gender}-${i}`} className="roster-row">
                   <span className="roster-index roster-index--empty">{players.length + i + 1}</span>
-                  <PlayerSeat gender={gender} empty />
+                  <PlayerSeat
+                    gender={gender}
+                    empty
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => inputRef.current?.focus()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        inputRef.current?.focus();
+                      }
+                    }}
+                  />
                 </div>
               ))}
             </div>
@@ -485,6 +503,10 @@ function LineSetup({
   onStartingOpenChange,
   onSplitCycleChange,
   onSoftCapChange,
+  halfAt,
+  onHalfAtChange,
+  endAt,
+  onEndAtChange,
 }: {
   lineupSize: LineupSize;
   startingOpen: number;
@@ -494,6 +516,10 @@ function LineSetup({
   onStartingOpenChange: (open: number) => void;
   onSplitCycleChange?: (cycle: SplitCycle) => void;
   onSoftCapChange: (cap: SoftPointCap) => void;
+  halfAt: GameClockTime;
+  onHalfAtChange: (time: GameClockTime) => void;
+  endAt: GameClockTime;
+  onEndAtChange: (time: GameClockTime) => void;
 }) {
   const openCount = clampOpenCount(startingOpen, lineupSize);
   const womenCount = lineupSize - openCount;
@@ -572,9 +598,24 @@ function LineSetup({
             </div>
           </div>
         )}
-        <div className="line-setup-group line-setup-group--cap">
-          <span className="line-setup-label">Soft point cap</span>
-          <SoftCapInput value={softCap} onChange={onSoftCapChange} />
+        <div className="line-setup-group line-setup-group--clocks">
+          <span className="line-setup-label">
+            Score and time <span className="line-setup-optional">(optional)</span>
+          </span>
+          <div className="line-setup-clocks">
+            <label className="line-setup-clock">
+              <span>Score to</span>
+              <SoftCapInput value={softCap} onChange={onSoftCapChange} />
+            </label>
+            <label className="line-setup-clock">
+              <span>Half at</span>
+              <GameClockInput value={halfAt} onChange={onHalfAtChange} ariaLabel="Halftime reminder" />
+            </label>
+            <label className="line-setup-clock">
+              <span>End at</span>
+              <GameClockInput value={endAt} onChange={onEndAtChange} ariaLabel="Game end reminder" />
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -605,6 +646,10 @@ export function PlayerManagerWeb({
   onImportPlayers,
   softCap = null,
   onSoftCapChange,
+  halfAt = null,
+  onHalfAtChange,
+  endAt = null,
+  onEndAtChange,
 }: PlayerManagerWebProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [openDraft, setOpenDraft] = useState('');
@@ -809,7 +854,7 @@ export function PlayerManagerWeb({
             </div>
           )}
 
-          {isLineStep && onLineupSizeChange && onStartingOpenChange && onSoftCapChange && (
+          {isLineStep && onLineupSizeChange && onStartingOpenChange && onSoftCapChange && onHalfAtChange && onEndAtChange && (
             <LineSetup
               lineupSize={lineupSize}
               startingOpen={startingOpen}
@@ -819,6 +864,10 @@ export function PlayerManagerWeb({
               onStartingOpenChange={onStartingOpenChange}
               onSplitCycleChange={onSplitCycleChange}
               onSoftCapChange={onSoftCapChange}
+              halfAt={halfAt}
+              onHalfAtChange={onHalfAtChange}
+              endAt={endAt}
+              onEndAtChange={onEndAtChange}
             />
           )}
 

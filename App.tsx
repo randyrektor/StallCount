@@ -29,6 +29,7 @@ import { mergeImportedPlayers, type ParsedRosterRow } from './src/utils/rosterIm
 import { loadGameSession, scheduleSaveGameSession, clearGameSession, type GameSession } from './src/utils/gameSession';
 import { buildSpectatorSnapshot } from './src/utils/spectatorState';
 import { isSoftCapReached, parseSoftCap, type SoftPointCap } from './src/utils/softCap';
+import { parseGameClockTime, type GameClockTime } from './src/utils/gameClock';
 import { SpectatorScreen } from './src/components/SpectatorScreen';
 import {
   mintRoomId,
@@ -53,11 +54,6 @@ interface ScoreEvent {
   pendingPlayerIds: string[];
   /** Who was on the field for the point that just ended. */
   linePlayerIds: string[];
-}
-
-function readSoftCap(): SoftPointCap {
-  if (typeof window === 'undefined') return null;
-  return parseSoftCap(window.localStorage.getItem('ultimate-soft-cap'));
 }
 
 function readLineupSize(): LineupSize {
@@ -120,7 +116,9 @@ export default function App() {
   const [lineupSize, setLineupSize] = useState<LineupSize>(() => readLineupSize());
   const [startingOpen, setStartingOpen] = useState(() => readStartingOpen(readLineupSize()));
   const [splitCycle, setSplitCycle] = useState<SplitCycle>(() => readSplitCycle());
-  const [softCap, setSoftCap] = useState<SoftPointCap>(() => readSoftCap());
+  const [softCap, setSoftCap] = useState<SoftPointCap>(null);
+  const [halfAt, setHalfAt] = useState<GameClockTime>(null);
+  const [endAt, setEndAt] = useState<GameClockTime>(null);
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === 'undefined') return 'dark';
     const saved = window.localStorage.getItem('ultimate-theme');
@@ -182,6 +180,8 @@ export default function App() {
     setStartingOpen(session.startingOpen);
     setSplitCycle(session.splitCycle);
     if (session.softCap !== undefined) setSoftCap(parseSoftCap(session.softCap));
+    setHalfAt(parseGameClockTime(session.halfAt));
+    setEndAt(parseGameClockTime(session.endAt));
     setShowRoster(false);
     setSetupStep(session.setupStep);
     prevLineIndexRef.current = session.lineIndex;
@@ -203,6 +203,9 @@ export default function App() {
     setWomenIndex(0);
     setPendingPlayers([]);
     setGameStarted(false);
+    setSoftCap(null);
+    setHalfAt(null);
+    setEndAt(null);
     prevLineIndexRef.current = 0;
     setWatchRoomId(null);
     setWatchWriteKey(null);
@@ -285,14 +288,10 @@ export default function App() {
       window.localStorage.setItem('ultimate-lineup-size', String(lineupSize));
       window.localStorage.setItem('ultimate-starting-open', String(startingOpen));
       window.localStorage.setItem('ultimate-split-cycle', splitCycle);
-      window.localStorage.setItem(
-        'ultimate-soft-cap',
-        softCap == null ? 'off' : String(softCap)
-      );
     } catch {
       // ignore quota errors
     }
-  }, [lineupSize, startingOpen, splitCycle, softCap]);
+  }, [lineupSize, startingOpen, splitCycle]);
 
   // Calculate current queues based on rotation
   const currentPattern = getPattern(lineIndex);
@@ -329,6 +328,8 @@ export default function App() {
         startingOpen,
         splitCycle,
         softCap,
+        halfAt,
+        endAt,
       }),
     [
       team1Name,
@@ -341,6 +342,8 @@ export default function App() {
       startingOpen,
       splitCycle,
       softCap,
+      halfAt,
+      endAt,
     ]
   );
 
@@ -679,6 +682,8 @@ export default function App() {
       startingOpen,
       splitCycle,
       softCap,
+      halfAt,
+      endAt,
       showRoster,
       setupStep,
       watchRoomId: watchRoomId ?? undefined,
@@ -705,6 +710,8 @@ export default function App() {
     startingOpen,
     splitCycle,
     softCap,
+    halfAt,
+    endAt,
     showRoster,
     setupStep,
     watchRoomId,
@@ -779,6 +786,8 @@ export default function App() {
           startingOpen={startingOpen}
           splitCycle={splitCycle}
           softCap={softCap}
+          halfAt={halfAt}
+          endAt={endAt}
           onLineupSizeChange={(size) => {
             setLineupSize(size);
             setStartingOpen((open) => clampOpenCount(open, size));
@@ -786,6 +795,8 @@ export default function App() {
           onStartingOpenChange={setStartingOpen}
           onSplitCycleChange={setSplitCycle}
           onSoftCapChange={setSoftCap}
+          onHalfAtChange={setHalfAt}
+          onEndAtChange={setEndAt}
           onImportPlayers={handleImportPlayers}
         />
       ) : (
@@ -804,6 +815,8 @@ export default function App() {
           lineupSize={lineupSize}
           splitCycle={splitCycle}
           softCap={softCap}
+          halfAt={halfAt}
+          endAt={endAt}
           setSettingsVisible={setSettingsVisible}
           onOpenRoster={() => {
             setShowRoster(true);
@@ -844,6 +857,10 @@ export default function App() {
         onSplitCycleChange={setSplitCycle}
         softCap={softCap}
         onSoftCapChange={setSoftCap}
+        halfAt={halfAt}
+        onHalfAtChange={setHalfAt}
+        endAt={endAt}
+        onEndAtChange={setEndAt}
         theme={theme}
         onThemeChange={setTheme}
         onReset={handleReset}

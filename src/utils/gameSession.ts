@@ -1,5 +1,6 @@
 import type { Player, LineupSize, SplitCycle } from '../types';
 import type { SoftPointCap } from './softCap';
+import type { GameClockTime } from './gameClock';
 
 export const GAME_SESSION_KEY = 'ultimate-active-game';
 
@@ -33,6 +34,8 @@ export type GameSession = {
   startingOpen: number;
   splitCycle: SplitCycle;
   softCap?: SoftPointCap;
+  halfAt?: GameClockTime;
+  endAt?: GameClockTime;
   showRoster: boolean;
   setupStep: 'roster' | 'line';
   watchRoomId?: string;

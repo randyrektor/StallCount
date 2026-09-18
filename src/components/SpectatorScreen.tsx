@@ -6,7 +6,9 @@ import {
   type SpectatorLinkStatus,
   type SpectatorSnapshot,
 } from '../utils/spectatorState';
-import { isSoftCapReached } from '../utils/softCap';
+import { formatSoftCapBadge, isSoftCapReached } from '../utils/softCap';
+import { activeClockReminder, clockReminderCopy } from '../utils/gameClock';
+import { useNowTick } from '../hooks/useNowTick';
 import { GenderCyclePills } from './GenderCyclePills';
 
 function statusCopy(status: SpectatorLinkStatus): { kicker: string; hint: string } {
@@ -46,13 +48,29 @@ function GenderSplit({
   return (
     <div className="spectator-split">
       <div className="spectator-split-label">{label}</div>
-      <div className="spectator-split-chips">
-        <span className="spectator-chip spectator-chip--open">
-          <strong>{open}</strong> Open
-        </span>
-        <span className="spectator-chip spectator-chip--women">
-          <strong>{women}</strong> Women
-        </span>
+      <div
+        className="spectator-split-chips"
+        role="group"
+        aria-label={`${label}: ${open} open, ${women} women`}
+      >
+        {open > 0 && (
+          <span
+            className="spectator-chip spectator-chip--open"
+            style={{ flexGrow: open, flexShrink: 1, flexBasis: 0 }}
+          >
+            <strong>{open}</strong>
+            <span className="spectator-chip-label">Open</span>
+          </span>
+        )}
+        {women > 0 && (
+          <span
+            className="spectator-chip spectator-chip--women"
+            style={{ flexGrow: women, flexShrink: 1, flexBasis: 0 }}
+          >
+            <strong>{women}</strong>
+            <span className="spectator-chip-label">Women</span>
+          </span>
+        )}
       </div>
     </div>
   );
@@ -68,6 +86,10 @@ export function SpectatorScreen({
   onLeave?: () => void;
 }) {
   const copy = statusCopy(linkStatus);
+  const now = useNowTick();
+  const clockReminder = snapshot
+    ? activeClockReminder(snapshot.halfAt ?? null, snapshot.endAt ?? null, new Date(now))
+    : null;
   if (!snapshot) {
     return (
       <AppShell
@@ -104,15 +126,16 @@ export function SpectatorScreen({
     >
       <div className="spectator-card">
         <p className={`spectator-kicker spectator-kicker--${linkStatus}`}>{copy.kicker}</p>
-        <div className="spectator-score-row">
-          <div className="spectator-team">
-            <span className="spectator-name">{snapshot.us || 'Us'}</span>
-            <span className="spectator-score score-num">{snapshot.s1}</span>
-          </div>
-          <span className="spectator-dash">–</span>
-          <div className="spectator-team spectator-team--right">
-            <span className="spectator-name">{snapshot.them || 'Them'}</span>
-            <span className="spectator-score score-num">{snapshot.s2}</span>
+        <div className="score-top-bar spectator-score-bar">
+          <div className="score-teams">
+            <div className="score-tile">
+              <h2 className="score-team-name">{snapshot.us || 'Us'}</h2>
+              <h1 className="score-num">{snapshot.s1}</h1>
+            </div>
+            <div className="score-tile">
+              <h2 className="score-team-name">{snapshot.them || 'Them'}</h2>
+              <h1 className="score-num">{snapshot.s2}</h1>
+            </div>
           </div>
         </div>
         <div className="line-info spectator-line-info">
@@ -121,13 +144,18 @@ export function SpectatorScreen({
               <span>Point {snapshot.point}</span>
               {snapshot.softCap != null && (
                 <span className={`line-info-cap${capReached ? ' is-reached' : ''}`}>
-                  {capReached ? `Cap ${snapshot.softCap}` : `To ${snapshot.softCap}`}
+                  {formatSoftCapBadge(snapshot.softCap, capReached)}
                 </span>
               )}
             </div>
             <GenderCyclePills splitCycle={snapshot.splitCycle} lineIndex={snapshot.lineIndex} />
           </div>
         </div>
+        {clockReminder && (
+          <p className={`spectator-clock-note${clockReminder.phase === 'now' ? ' spectator-clock-note--now' : ''}`}>
+            {clockReminderCopy(clockReminder)}
+          </p>
+        )}
         {showGender && (
           <div className="spectator-gender">
             <GenderSplit label="This point" open={snapshot.thisOpen} women={snapshot.thisWomen} />

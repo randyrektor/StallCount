@@ -22,3 +22,8 @@ export function isSoftCapReached(
 export function formatSoftCap(cap: SoftPointCap): string {
   return cap == null ? 'Off' : String(cap);
 }
+
+/** Compact badge next to "Point N" — not "To 15", which looks like a point limit. */
+export function formatSoftCapBadge(cap: number, reached: boolean): string {
+  return reached ? `Score cap ${cap}` : `Score to ${cap}`;
+}

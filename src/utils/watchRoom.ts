@@ -38,6 +38,8 @@ export function watchSnapshotsEqual(
     a.splitCycle === b.splitCycle &&
     a.lineIndex === b.lineIndex &&
     a.softCap === b.softCap &&
+    a.halfAt === b.halfAt &&
+    a.endAt === b.endAt &&
     a.us === b.us &&
     a.them === b.them
   );

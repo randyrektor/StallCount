@@ -1,6 +1,7 @@
 import type { LineupSize, SplitCycle } from '../types';
 import { getGenderPattern, isSplitCycleAvailable } from './rotationHelpers';
 import type { SoftPointCap } from './softCap';
+import { parseGameClockTime, type GameClockTime } from './gameClock';
 
 export const SPECTATOR_SNAPSHOT_VERSION = 2 as const;
 
@@ -20,6 +21,8 @@ export type SpectatorSnapshot = {
   splitCycle: SplitCycle;
   lineIndex: number;
   softCap: SoftPointCap;
+  halfAt: GameClockTime;
+  endAt: GameClockTime;
   updatedAt: number;
 };
 
@@ -45,6 +48,8 @@ export function buildSpectatorSnapshot(input: {
   startingOpen: number;
   splitCycle: SplitCycle;
   softCap: SoftPointCap;
+  halfAt?: GameClockTime;
+  endAt?: GameClockTime;
   now?: number;
 }): SpectatorSnapshot {
   const cycle = isSplitCycleAvailable(input.lineupSize, input.startingOpen, input.splitCycle)
@@ -66,6 +71,8 @@ export function buildSpectatorSnapshot(input: {
     splitCycle: cycle,
     lineIndex: input.lineIndex,
     softCap: input.softCap,
+    halfAt: input.halfAt ?? null,
+    endAt: input.endAt ?? null,
     updatedAt: input.now ?? Date.now(),
   };
 }
@@ -115,6 +122,8 @@ function fromV1(parsed: Record<string, unknown>): SpectatorSnapshot | null {
     splitCycle: 'same',
     lineIndex: 0,
     softCap: null,
+    halfAt: null,
+    endAt: null,
     updatedAt: 0,
   };
 }
@@ -147,6 +156,8 @@ function fromV2(parsed: Record<string, unknown>): SpectatorSnapshot | null {
     splitCycle: parsed.splitCycle,
     lineIndex: isFiniteNumber(parsed.lineIndex) ? parsed.lineIndex : 0,
     softCap: normalizeSoftCap(parsed.softCap),
+    halfAt: parseGameClockTime(parsed.halfAt),
+    endAt: parseGameClockTime(parsed.endAt),
     updatedAt: isFiniteNumber(parsed.updatedAt) ? parsed.updatedAt : 0,
   };
 }

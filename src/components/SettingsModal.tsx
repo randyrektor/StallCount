@@ -12,7 +12,9 @@ import {
 } from '../utils/scoreReport';
 import { qrImageUrl } from '../utils/spectatorState';
 import { type SoftPointCap } from '../utils/softCap';
+import { type GameClockTime } from '../utils/gameClock';
 import { SoftCapInput } from './SoftCapInput';
+import { GameClockInput } from './GameClockInput';
 
 /** Compact ratio like "4:2" (open : women-matching). */
 function formatRatio(men: number, women: number): string {
@@ -57,6 +59,10 @@ interface SettingsModalProps {
   onSplitCycleChange: (cycle: SplitCycle) => void;
   softCap: SoftPointCap;
   onSoftCapChange: (cap: SoftPointCap) => void;
+  halfAt: GameClockTime;
+  onHalfAtChange: (time: GameClockTime) => void;
+  endAt: GameClockTime;
+  onEndAtChange: (time: GameClockTime) => void;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
   onReset: () => void;
@@ -92,6 +98,10 @@ export function SettingsModal({
   onSplitCycleChange,
   softCap,
   onSoftCapChange,
+  halfAt,
+  onHalfAtChange,
+  endAt,
+  onEndAtChange,
   theme,
   onThemeChange,
   onReset,
@@ -116,6 +126,8 @@ export function SettingsModal({
   const [localLineupSize, setLocalLineupSize] = useState<LineupSize>(lineupSize);
   const [localSplitCycle, setLocalSplitCycle] = useState<SplitCycle>(splitCycle);
   const [localSoftCap, setLocalSoftCap] = useState<SoftPointCap>(softCap);
+  const [localHalfAt, setLocalHalfAt] = useState<GameClockTime>(halfAt);
+  const [localEndAt, setLocalEndAt] = useState<GameClockTime>(endAt);
   const [localTheme, setLocalTheme] = useState<Theme>(theme);
   const [shareStatus, setShareStatus] = useState('');
 
@@ -127,8 +139,10 @@ export function SettingsModal({
     setLocalLineupSize(lineupSize);
     setLocalSplitCycle(splitCycle);
     setLocalSoftCap(softCap);
+    setLocalHalfAt(halfAt);
+    setLocalEndAt(endAt);
     setLocalTheme(theme);
-  }, [visible, team1Name, team2Name, startingOpen, lineupSize, splitCycle, softCap, theme]);
+  }, [visible, team1Name, team2Name, startingOpen, lineupSize, splitCycle, softCap, halfAt, endAt, theme]);
 
   // Apply the chosen theme live as the user toggles, so they can see contrast
   // before saving. Reverts on cancel via handleCancel.
@@ -153,6 +167,8 @@ export function SettingsModal({
       isSplitCycleAvailable(localLineupSize, open, localSplitCycle) ? localSplitCycle : 'same'
     );
     onSoftCapChange(localSoftCap);
+    onHalfAtChange(localHalfAt);
+    onEndAtChange(localEndAt);
     onThemeChange(localTheme);
     onClose();
   };
@@ -164,6 +180,8 @@ export function SettingsModal({
     setLocalLineupSize(lineupSize);
     setLocalSplitCycle(splitCycle);
     setLocalSoftCap(softCap);
+    setLocalHalfAt(halfAt);
+    setLocalEndAt(endAt);
     setLocalTheme(theme);
     // Revert any live theme preview from the modal.
     document.documentElement.dataset.theme = theme;
@@ -234,9 +252,8 @@ export function SettingsModal({
   const handleCopySpectatorLink = async () => {
     try {
       await navigator.clipboard.writeText(spectatorLink);
-      setShareStatus('Spectator link copied');
     } catch {
-      setShareStatus('Could not copy link');
+      // Clipboard may be blocked; keep Copy link silent.
     }
   };
 
@@ -416,17 +433,32 @@ export function SettingsModal({
               <h3 style={styles.cardTitle}>Game</h3>
             </div>
             <div style={styles.cardContent}>
-              <label style={styles.label} htmlFor="settings-soft-cap">
-                Soft point cap
-              </label>
-              <p style={styles.spectatorHint}>
-                Leave blank for no cap.
-              </p>
-              <div style={{ marginBottom: 16 }}>
+              <div className="settings-clocks">
+                <label style={styles.label} htmlFor="settings-soft-cap">
+                  Score to
+                </label>
+                <label style={styles.label} htmlFor="settings-half-at">
+                  Half at
+                </label>
+                <label style={styles.label} htmlFor="settings-end-at">
+                  End at
+                </label>
                 <SoftCapInput
                   id="settings-soft-cap"
                   value={localSoftCap}
                   onChange={setLocalSoftCap}
+                />
+                <GameClockInput
+                  id="settings-half-at"
+                  value={localHalfAt}
+                  onChange={setLocalHalfAt}
+                  ariaLabel="Halftime reminder"
+                />
+                <GameClockInput
+                  id="settings-end-at"
+                  value={localEndAt}
+                  onChange={setLocalEndAt}
+                  ariaLabel="Game end reminder"
                 />
               </div>
               <div style={styles.compactActions}>

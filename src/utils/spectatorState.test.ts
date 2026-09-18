@@ -124,4 +124,24 @@ describe('spectator snapshot encoding', () => {
     });
     expect(snapshotShowsGender(decoded!)).toBe(false);
   });
+
+  it('fills missing clock reminders on older v2 snapshots', () => {
+    const snap = buildSpectatorSnapshot({
+      us: 'A',
+      them: 'B',
+      s1: 1,
+      s2: 0,
+      point: 2,
+      lineIndex: 0,
+      lineupSize: 7,
+      startingOpen: 4,
+      splitCycle: 'same',
+      softCap: null,
+      now: 1,
+    });
+    const { halfAt: _h, endAt: _e, ...legacy } = snap;
+    const decoded = decodeSpectatorSnapshot(encodeSpectatorSnapshot(legacy as never));
+    expect(decoded?.halfAt).toBeNull();
+    expect(decoded?.endAt).toBeNull();
+  });
 });

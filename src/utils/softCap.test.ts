@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isSoftCapReached, parseSoftCap } from './softCap';
+import { isSoftCapReached, parseSoftCap, formatSoftCapBadge } from './softCap';
 
 describe('soft point cap', () => {
   it('parses off and common rec targets', () => {
@@ -14,5 +14,10 @@ describe('soft point cap', () => {
     expect(isSoftCapReached(13, 10, 13)).toBe(true);
     expect(isSoftCapReached(12, 13, 13)).toBe(true);
     expect(isSoftCapReached(15, 14, null)).toBe(false);
+  });
+
+  it('labels the cap as a score target, not a point count', () => {
+    expect(formatSoftCapBadge(15, false)).toBe('Score to 15');
+    expect(formatSoftCapBadge(15, true)).toBe('Score cap 15');
   });
 });

@@ -2,7 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Player, type LineupSize, type SplitCycle } from '../types';
 import { getGenderPattern, isSplitCycleAvailable } from '../utils/rotationHelpers';
 import { getLineSeats } from '../utils/lineRotation';
-import { isSoftCapReached, type SoftPointCap } from '../utils/softCap';
+import { formatSoftCapBadge, isSoftCapReached, type SoftPointCap } from '../utils/softCap';
+import {
+  activeClockReminder,
+  clockReminderCopy,
+  type GameClockTime,
+} from '../utils/gameClock';
+import { useNowTick } from '../hooks/useNowTick';
 import { GenderCyclePills } from './GenderCyclePills';
 import { THEME } from '../constants';
 import { AppShell } from './AppShell';
@@ -56,6 +62,8 @@ interface ScoreBoardProps {
   lineupSize?: LineupSize;
   splitCycle?: SplitCycle;
   softCap?: SoftPointCap;
+  halfAt?: GameClockTime;
+  endAt?: GameClockTime;
   setSettingsVisible: (visible: boolean) => void;
   onOpenRoster?: () => void;
   pendingCount?: number;
@@ -86,6 +94,8 @@ export function ScoreBoard({
   lineupSize = 7,
   splitCycle = 'ABBA',
   softCap = null,
+  halfAt = null,
+  endAt = null,
   setSettingsVisible,
   onOpenRoster,
   pendingCount = 0,
@@ -101,6 +111,8 @@ export function ScoreBoard({
   onSubstitute,
 }: ScoreBoardProps) {
   const [subOut, setSubOut] = useState<Player | null>(null);
+  const [dismissedReminder, setDismissedReminder] = useState('');
+  const now = useNowTick();
   const team1TileRef = useRef<HTMLButtonElement>(null);
   const team2TileRef = useRef<HTMLButtonElement>(null);
 
@@ -120,6 +132,8 @@ export function ScoreBoard({
 
   const scoreDiff = team1Score - team2Score;
   const capReached = isSoftCapReached(team1Score, team2Score, softCap);
+  const clockReminder = activeClockReminder(halfAt, endAt, new Date(now));
+  const reminderKey = clockReminder ? `${clockReminder.kind}:${clockReminder.phase}` : '';
   const scoreDiffColor =
     scoreDiff > 0 ? THEME.success : scoreDiff < 0 ? THEME.danger : COLORS.text;
 
@@ -284,7 +298,7 @@ export function ScoreBoard({
             <span>Point {pointNumber}</span>
             {softCap != null && (
               <span className={`line-info-cap${capReached ? ' is-reached' : ''}`}>
-                {capReached ? `Cap ${softCap}` : `To ${softCap}`}
+                {formatSoftCapBadge(softCap, capReached)}
               </span>
             )}
           </div>
@@ -296,6 +310,18 @@ export function ScoreBoard({
           )}
         </div>
       </div>
+      {clockReminder && reminderKey !== dismissedReminder && (
+        <div className={`clock-reminder${clockReminder.phase === 'now' ? ' clock-reminder--now' : ''}`}>
+          <p className="clock-reminder-copy">{clockReminderCopy(clockReminder)}</p>
+          <button
+            type="button"
+            className="clock-reminder-dismiss"
+            onClick={() => setDismissedReminder(reminderKey)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <div className="line-display">
         <div className="line-section">
           <h3 className="line-title">Current Line</h3>
