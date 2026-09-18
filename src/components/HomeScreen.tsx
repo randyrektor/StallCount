@@ -57,7 +57,7 @@ export function HomeScreen({ onStart, onResume, resumeLabel }: HomeScreenProps) 
     <AppShell showHeader={false} width="narrow" center>
       <div className="shell-card">
           <h1 className="home-title" style={styles.title}>StallCount</h1>
-          <p style={styles.subtitle}>Choose your team</p>
+          <p style={styles.subtitle}>Ultimate frisbee scorekeeper</p>
           
           <div style={styles.inputSection}>
             <label style={styles.label}>Your Team Name</label>

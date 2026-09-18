@@ -420,7 +420,7 @@ export function SettingsModal({
                 Soft point cap
               </label>
               <p style={styles.spectatorHint}>
-                First team to this score wins. Leave blank for no cap.
+                Leave blank for no cap.
               </p>
               <div style={{ marginBottom: 16 }}>
                 <SoftCapInput
@@ -455,8 +455,7 @@ export function SettingsModal({
             </div>
             <div style={styles.cardContent}>
               <p style={styles.spectatorHint}>
-                Show this QR if the other sideline wants a live score reader. They scan once
-                and leave the tab open — score, point, and gender update here.
+                Team members or opponents can scan for a live scoreboard.
               </p>
               {spectatorLink && (
                 <img
