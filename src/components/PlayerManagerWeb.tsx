@@ -853,7 +853,7 @@ export function PlayerManagerWeb({
               <strong style={{ color: COLORS.text }}>Pending</strong>
               <span style={{ color: COLORS.textSecondary, fontSize: 12 }}>
                 {' '}
-                — their number would be on this point, so they wait. After this point they take that slot (e.g. field is 4-5-6-1, new #7 stays pending, next rotation is 4-5-6-7).
+                — they wait only if joining now would change the line already on the field. They can go onto next line immediately.
               </span>
             </div>
           )}

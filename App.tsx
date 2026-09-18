@@ -19,7 +19,6 @@ import {
   applyQueueRemovalsForRosterChange,
   applyDragReorderToMasterQueues,
   partitionPendingForLineChange,
-  applyPendingActivationsToQueues,
   restoreActivatedPendingAfterUndo,
   expandRawIndexAfterQueueAppend,
 } from './src/utils/rosterManagerLogic';
@@ -95,7 +94,6 @@ function readStartingOpen(size: LineupSize): number {
 }
 
 export default function App() {
-  const prevLineIndexRef = useRef(0);
   const [showHomeScreen, setShowHomeScreen] = useState(true);
   const [sessionReady, setSessionReady] = useState(false);
   const [resumeLabel, setResumeLabel] = useState<string | null>(null);
@@ -183,7 +181,6 @@ export default function App() {
     setEndAt(parseGameClockTime(session.endAt));
     setShowRoster(false);
     setSetupStep(session.setupStep);
-    prevLineIndexRef.current = session.lineIndex;
     if (session.watchRoomId && session.watchWriteKey) {
       setWatchRoomId(session.watchRoomId);
       setWatchWriteKey(session.watchWriteKey);
@@ -205,7 +202,6 @@ export default function App() {
     setSoftCap(null);
     setHalfAt(null);
     setEndAt(null);
-    prevLineIndexRef.current = 0;
     setWatchRoomId(null);
     setWatchWriteKey(null);
     clearGameSession();
@@ -255,7 +251,31 @@ export default function App() {
       setMasterOpenQueue(openPlayers);
       setMasterWomenQueue(womenPlayers);
     } else {
-      setPendingPlayers((prev) => [...prev, ...added]);
+      const nextPending = [...pendingPlayers, ...added];
+      const placed = partitionPendingForLineChange({
+        pendingPlayers: nextPending,
+        masterOpenQueue,
+        masterWomenQueue,
+        openIndex,
+        womenIndex,
+        lineIndex,
+        startingOpen,
+        lineupSize,
+        splitCycle,
+      });
+      setMasterOpenQueue(placed.masterOpenQueue);
+      setMasterWomenQueue(placed.masterWomenQueue);
+      setOpenIndex(placed.openIndex);
+      setWomenIndex(placed.womenIndex);
+      setPendingPlayers(placed.stillPending);
+      scoringRef.current = {
+        ...scoringRef.current,
+        masterOpenQueue: placed.masterOpenQueue,
+        masterWomenQueue: placed.masterWomenQueue,
+        openIndex: placed.openIndex,
+        womenIndex: placed.womenIndex,
+        pendingPlayers: placed.stillPending,
+      };
     }
     return { added: added.length, skipped };
   };
@@ -397,14 +417,50 @@ export default function App() {
       ...getWrapped(s.masterOpenQueue, s.openIndex, pattern.men),
       ...getWrapped(s.masterWomenQueue, s.womenIndex, pattern.women),
     ].map((p) => p.uuid);
-    const next = {
+    // Place pending against the line that just played (Current Line frozen).
+    // They may join Next Line. Then rotate, then let leftovers take the new line.
+    const placed = partitionPendingForLineChange({
+      pendingPlayers: s.pendingPlayers,
+      masterOpenQueue: s.masterOpenQueue,
+      masterWomenQueue: s.masterWomenQueue,
+      openIndex: s.openIndex,
+      womenIndex: s.womenIndex,
+      lineIndex: s.lineIndex,
+      startingOpen,
+      lineupSize,
+      splitCycle,
+    });
+    const advanced = {
       ...s,
       team1Score: team === 1 ? s.team1Score + 1 : s.team1Score,
       team2Score: team === 2 ? s.team2Score + 1 : s.team2Score,
-      openIndex: s.openIndex + pattern.men,
-      womenIndex: s.womenIndex + pattern.women,
+      masterOpenQueue: placed.masterOpenQueue,
+      masterWomenQueue: placed.masterWomenQueue,
+      pendingPlayers: placed.stillPending,
+      openIndex: placed.openIndex + pattern.men,
+      womenIndex: placed.womenIndex + pattern.women,
       lineIndex: s.lineIndex + 1,
       pointNumber: s.pointNumber + 1,
+    };
+    const flushed = partitionPendingForLineChange({
+      pendingPlayers: advanced.pendingPlayers,
+      masterOpenQueue: advanced.masterOpenQueue,
+      masterWomenQueue: advanced.masterWomenQueue,
+      openIndex: advanced.openIndex,
+      womenIndex: advanced.womenIndex,
+      lineIndex: advanced.lineIndex,
+      startingOpen,
+      lineupSize,
+      splitCycle,
+      allowChangingCurrentLine: true,
+    });
+    const next = {
+      ...advanced,
+      masterOpenQueue: flushed.masterOpenQueue,
+      masterWomenQueue: flushed.masterWomenQueue,
+      pendingPlayers: flushed.stillPending,
+      openIndex: flushed.openIndex,
+      womenIndex: flushed.womenIndex,
     };
     scoringRef.current = next;
     setScoreHistory((prev) => [
@@ -421,6 +477,9 @@ export default function App() {
     ]);
     if (team === 1) setTeam1Score(next.team1Score);
     else setTeam2Score(next.team2Score);
+    setMasterOpenQueue(next.masterOpenQueue);
+    setMasterWomenQueue(next.masterWomenQueue);
+    setPendingPlayers(next.pendingPlayers);
     setOpenIndex(next.openIndex);
     setWomenIndex(next.womenIndex);
     setLineIndex(next.lineIndex);
@@ -450,20 +509,47 @@ export default function App() {
   const handleForcePendingToRotation = useCallback(
     (player: Player) => {
       if (!pendingPlayers.some((p) => p.uuid === player.uuid)) return;
-      setPendingPlayers((prev) => prev.filter((p) => p.uuid !== player.uuid));
-      const applied = applyPendingActivationsToQueues(
+      const placed = partitionPendingForLineChange({
+        pendingPlayers: [player],
         masterOpenQueue,
         masterWomenQueue,
-        [player],
         openIndex,
-        womenIndex
+        womenIndex,
+        lineIndex,
+        startingOpen,
+        lineupSize,
+        splitCycle,
+        allowChangingCurrentLine: true,
+      });
+      setPendingPlayers((prev) =>
+        prev.filter((p) => p.uuid !== player.uuid && !placed.activate.some((a) => a.uuid === p.uuid))
       );
-      setMasterOpenQueue(applied.masterOpenQueue);
-      setMasterWomenQueue(applied.masterWomenQueue);
-      setOpenIndex(applied.openIndex);
-      setWomenIndex(applied.womenIndex);
+      setMasterOpenQueue(placed.masterOpenQueue);
+      setMasterWomenQueue(placed.masterWomenQueue);
+      setOpenIndex(placed.openIndex);
+      setWomenIndex(placed.womenIndex);
+      scoringRef.current = {
+        ...scoringRef.current,
+        masterOpenQueue: placed.masterOpenQueue,
+        masterWomenQueue: placed.masterWomenQueue,
+        openIndex: placed.openIndex,
+        womenIndex: placed.womenIndex,
+        pendingPlayers: pendingPlayers.filter(
+          (p) => p.uuid !== player.uuid && !placed.activate.some((a) => a.uuid === p.uuid)
+        ),
+      };
     },
-    [pendingPlayers, masterOpenQueue, masterWomenQueue, openIndex, womenIndex]
+    [
+      pendingPlayers,
+      masterOpenQueue,
+      masterWomenQueue,
+      openIndex,
+      womenIndex,
+      lineIndex,
+      startingOpen,
+      lineupSize,
+      splitCycle,
+    ]
   );
 
   const handleReset = () => {
@@ -597,16 +683,9 @@ export default function App() {
       return;
     }
 
-    setPendingPlayers((prev) => [...prev, player]);
-  };
-
-  useEffect(() => {
-    const advanced = lineIndex > prevLineIndexRef.current;
-    prevLineIndexRef.current = lineIndex;
-    if (!advanced || pendingPlayers.length === 0) return;
-
-    const { activate, stillPending } = partitionPendingForLineChange({
-      pendingPlayers,
+    const nextPending = [...pendingPlayers, player];
+    const placed = partitionPendingForLineChange({
+      pendingPlayers: nextPending,
       masterOpenQueue,
       masterWomenQueue,
       openIndex,
@@ -616,22 +695,20 @@ export default function App() {
       lineupSize,
       splitCycle,
     });
-
-    if (activate.length > 0) {
-      const applied = applyPendingActivationsToQueues(
-        masterOpenQueue,
-        masterWomenQueue,
-        activate,
-        openIndex,
-        womenIndex
-      );
-      setMasterOpenQueue(applied.masterOpenQueue);
-      setMasterWomenQueue(applied.masterWomenQueue);
-      setOpenIndex(applied.openIndex);
-      setWomenIndex(applied.womenIndex);
-      setPendingPlayers(stillPending);
-    }
-  }, [lineIndex, openIndex, womenIndex, pointNumber, startingOpen, lineupSize, splitCycle]);
+    setMasterOpenQueue(placed.masterOpenQueue);
+    setMasterWomenQueue(placed.masterWomenQueue);
+    setOpenIndex(placed.openIndex);
+    setWomenIndex(placed.womenIndex);
+    setPendingPlayers(placed.stillPending);
+    scoringRef.current = {
+      ...scoringRef.current,
+      masterOpenQueue: placed.masterOpenQueue,
+      masterWomenQueue: placed.masterWomenQueue,
+      openIndex: placed.openIndex,
+      womenIndex: placed.womenIndex,
+      pendingPlayers: placed.stillPending,
+    };
+  };
 
   // Changing players-per-point or gender split only changes window *length*.
   // Keep openIndex / womenIndex (next-on) exactly where they are.
