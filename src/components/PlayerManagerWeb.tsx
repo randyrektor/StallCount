@@ -532,12 +532,7 @@ function LineSetup({
   const womenCount = lineupSize - openCount;
 
   const setSize = (n: LineupSize) => {
-    const open = clampOpenCount(startingOpen, n);
     onLineupSizeChange(n);
-    onStartingOpenChange(open);
-    if (onSplitCycleChange && !isSplitCycleAvailable(n, open, splitCycle)) {
-      onSplitCycleChange('same');
-    }
   };
 
   return (

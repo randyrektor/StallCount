@@ -14,6 +14,7 @@ import {
   insertPlayerAtGenderEndOfRoster,
   clampOpenCount,
   DEFAULT_STARTING_OPEN,
+  nextLinePattern,
 } from './src/utils/rotationHelpers';
 import {
   applyQueueRemovalsForRosterChange,
@@ -114,6 +115,11 @@ export default function App() {
   const [lineupSize, setLineupSize] = useState<LineupSize>(() => readLineupSize());
   const [startingOpen, setStartingOpen] = useState(() => readStartingOpen(readLineupSize()));
   const [splitCycle, setSplitCycle] = useState<SplitCycle>(() => readSplitCycle());
+  const linePatternRef = useRef({
+    size: lineupSize,
+    open: startingOpen,
+    cycle: splitCycle,
+  });
   const [softCap, setSoftCap] = useState<SoftPointCap>(null);
   const [halfAt, setHalfAt] = useState<GameClockTime>(null);
   const [endAt, setEndAt] = useState<GameClockTime>(null);
@@ -176,6 +182,11 @@ export default function App() {
     setLineupSize(session.lineupSize);
     setStartingOpen(session.startingOpen);
     setSplitCycle(session.splitCycle);
+    linePatternRef.current = {
+      size: session.lineupSize,
+      open: session.startingOpen,
+      cycle: session.splitCycle,
+    };
     if (session.softCap !== undefined) setSoftCap(parseSoftCap(session.softCap));
     setHalfAt(parseGameClockTime(session.halfAt));
     setEndAt(parseGameClockTime(session.endAt));
@@ -696,16 +707,16 @@ export default function App() {
     };
   };
 
-  const commitLinePattern = (
-    nextSize: LineupSize,
-    nextOpen: number,
-    nextCycle: SplitCycle
-  ) => {
-    const size = nextSize;
-    const starting = clampOpenCount(nextOpen, size);
-    setLineupSize(size);
-    setStartingOpen(starting);
-    setSplitCycle(nextCycle);
+  const commitLinePattern = (patch: {
+    size?: LineupSize;
+    open?: number;
+    cycle?: SplitCycle;
+  }) => {
+    const next = nextLinePattern(linePatternRef.current, patch);
+    linePatternRef.current = next;
+    setLineupSize(next.size);
+    setStartingOpen(next.open);
+    setSplitCycle(next.cycle);
     if (!gameStarted || pendingPlayers.length === 0) return;
     const placed = partitionPendingForLineChange({
       pendingPlayers,
@@ -714,9 +725,9 @@ export default function App() {
       openIndex,
       womenIndex,
       lineIndex,
-      startingOpen: starting,
-      lineupSize: size,
-      splitCycle: nextCycle,
+      startingOpen: next.open,
+      lineupSize: next.size,
+      splitCycle: next.cycle,
     });
     if (placed.activate.length === 0) return;
     setMasterOpenQueue(placed.masterOpenQueue);
@@ -886,13 +897,13 @@ export default function App() {
           halfAt={halfAt}
           endAt={endAt}
           onLineupSizeChange={(size) => {
-            commitLinePattern(size, startingOpen, splitCycle);
+            commitLinePattern({ size });
           }}
           onStartingOpenChange={(open) => {
-            commitLinePattern(lineupSize, open, splitCycle);
+            commitLinePattern({ open });
           }}
           onSplitCycleChange={(cycle) => {
-            commitLinePattern(lineupSize, startingOpen, cycle);
+            commitLinePattern({ cycle });
           }}
           onSoftCapChange={setSoftCap}
           onHalfAtChange={setHalfAt}
@@ -948,15 +959,15 @@ export default function App() {
         onTeam2NameChange={setTeam2Name}
         startingOpen={startingOpen}
         onStartingOpenChange={(open) => {
-          commitLinePattern(lineupSize, open, splitCycle);
+          commitLinePattern({ open });
         }}
         lineupSize={lineupSize}
         onLineupSizeChange={(size) => {
-          commitLinePattern(size, startingOpen, splitCycle);
+          commitLinePattern({ size });
         }}
         splitCycle={splitCycle}
         onSplitCycleChange={(cycle) => {
-          commitLinePattern(lineupSize, startingOpen, cycle);
+          commitLinePattern({ cycle });
         }}
         softCap={softCap}
         onSoftCapChange={setSoftCap}

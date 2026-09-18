@@ -11,6 +11,7 @@ import {
   isSplitCycleAvailable,
   clampOpenCount,
   insertPlayerAtGenderEndOfRoster,
+  nextLinePattern,
 } from './rotationHelpers';
 import type { Player, LineupSize, SplitCycle } from '../types';
 
@@ -214,5 +215,23 @@ describe('mergeRosterFromGenderQueues', () => {
     const womenQ = [p('M', 'W')];
     const merged = mergeRosterFromGenderQueues(openQ, womenQ, prev);
     expect(merged.map((x) => x.name)).toEqual(['A', 'X', 'M', 'Y']);
+  });
+});
+
+describe('nextLinePattern', () => {
+  const seven = { size: 7 as LineupSize, open: 4, cycle: 'same' as SplitCycle };
+
+  it('keeps a smaller size when open is patched next in the same event', () => {
+    const afterSize = nextLinePattern(seven, { size: 4 });
+    expect(afterSize.size).toBe(4);
+    expect(afterSize.open).toBe(4);
+    const afterOpen = nextLinePattern(afterSize, { open: 3 });
+    expect(afterOpen).toEqual({ size: 4, open: 3, cycle: 'same' });
+  });
+
+  it('drops ABBA when the new line is all-open', () => {
+    expect(
+      nextLinePattern({ size: 7, open: 4, cycle: 'ABBA' }, { size: 4 })
+    ).toEqual({ size: 4, open: 4, cycle: 'same' });
   });
 });

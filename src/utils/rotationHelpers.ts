@@ -14,6 +14,24 @@ export function clampOpenCount(open: number, size: LineupSize): number {
   return Math.max(0, Math.min(size, Math.round(open)));
 }
 
+export type LinePattern = {
+  size: LineupSize;
+  open: number;
+  cycle: SplitCycle;
+};
+
+/** Merge one field at a time so size/open/cycle clicks in the same event don't snap back. */
+export function nextLinePattern(
+  current: LinePattern,
+  patch: Partial<LinePattern>
+): LinePattern {
+  const size = patch.size ?? current.size;
+  const open = clampOpenCount(patch.open ?? current.open, size);
+  const requestedCycle = patch.cycle ?? current.cycle;
+  const cycle = isSplitCycleAvailable(size, open, requestedCycle) ? requestedCycle : 'same';
+  return { size, open, cycle };
+}
+
 /** True when A and its mirror are different (not 3:3 on 6, etc.). */
 export function splitCycleApplies(size: LineupSize, startingOpen: number): boolean {
   const open = clampOpenCount(startingOpen, size);
