@@ -2,6 +2,9 @@
 
 A modern web-based score tracking application for Ultimate Frisbee games, featuring advanced line rotation management, gender ratio tracking, and real-time game statistics.
 
+- **Live app:** [stall.party](https://stall.party)
+- **Source:** [github.com/randyrektor/StallCount](https://github.com/randyrektor/StallCount)
+
 ## Features
 
 ### ✅ Team & Roster Management
@@ -106,10 +109,6 @@ The app uses browser localStorage to persist:
 - Vite
 - @dnd-kit (drag-and-drop)
 - React Spring (animations)
-
-## License
-
-Private project
 
 ## Author
 
