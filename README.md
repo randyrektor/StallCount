@@ -1,4 +1,4 @@
-# Ultimate Frisbee Score App
+# StallCount
 
 A modern web-based score tracking application for Ultimate Frisbee games, featuring advanced line rotation management, gender ratio tracking, and real-time game statistics.
 

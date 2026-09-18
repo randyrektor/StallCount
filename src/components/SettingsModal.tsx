@@ -4,7 +4,7 @@ import {
   isSplitCycleAvailable,
   clampOpenCount,
 } from '../utils/rotationHelpers';
-import { THEME } from '../constants';
+import { APP_NAME, COPYRIGHT_HOLDER, GITHUB_URL, KOFI_URL, THEME } from '../constants';
 import {
   buildScoreReport,
   downloadTextFile,
@@ -207,7 +207,7 @@ export function SettingsModal({
 
   const handleExportScore = () => {
     const gameDate = new Date().toLocaleDateString();
-    downloadTextFile(`ultimate-score-${gameDate}-${team1Name}-vs-${team2Name}.txt`, reportText);
+    downloadTextFile(`stallcount-${gameDate}-${team1Name}-vs-${team2Name}.txt`, reportText);
   };
 
   const handleCopyScore = async () => {
@@ -490,6 +490,30 @@ export function SettingsModal({
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="settings-about" style={styles.about}>
+            <p style={styles.aboutCopy}>
+              {APP_NAME} · © {new Date().getFullYear()} {COPYRIGHT_HOLDER}
+            </p>
+            <div className="settings-about-links" style={styles.aboutLinks}>
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.aboutLink}
+              >
+                GitHub
+              </a>
+              <a
+                href={KOFI_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.aboutLink}
+              >
+                Support on Ko-fi
+              </a>
             </div>
           </div>
         </div>
@@ -819,6 +843,29 @@ const styles: Record<string, React.CSSProperties> = {
     color: COLORS.danger,
     fontSize: '14px',
     fontWeight: 600,
+  },
+  about: {
+    marginTop: '8px',
+    padding: '12px 8px 4px',
+    textAlign: 'center',
+  },
+  aboutCopy: {
+    margin: '0 0 8px',
+    fontSize: '12px',
+    color: COLORS.textSecondary,
+    lineHeight: 1.4,
+  },
+  aboutLinks: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '16px',
+    flexWrap: 'wrap',
+  },
+  aboutLink: {
+    color: COLORS.open,
+    fontSize: '13px',
+    fontWeight: 600,
+    textDecoration: 'none',
   },
   footer: {
     padding: '16px 24px',

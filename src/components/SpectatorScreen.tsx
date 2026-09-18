@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_NAME, APP_URL } from '../constants';
 import { AppShell } from './AppShell';
 import {
   snapshotShowsGender,
@@ -82,6 +83,7 @@ export function SpectatorScreen({
         <div className="spectator-card">
           <p className={`spectator-kicker spectator-kicker--${linkStatus}`}>{copy.kicker}</p>
           <p className="spectator-hint">Waiting for the scorer. Leave this tab open.</p>
+          <TryStallCount />
         </div>
       </AppShell>
     );
@@ -132,7 +134,19 @@ export function SpectatorScreen({
           </div>
         )}
         <p className="spectator-hint">{copy.hint}</p>
+        <TryStallCount />
       </div>
     </AppShell>
+  );
+}
+
+function TryStallCount() {
+  return (
+    <p className="spectator-promo">
+      Scoring your own games? Try{' '}
+      <a href={APP_URL} target="_blank" rel="noopener noreferrer">
+        {APP_NAME}
+      </a>.
+    </p>
   );
 }

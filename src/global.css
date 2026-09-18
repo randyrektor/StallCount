@@ -1342,6 +1342,25 @@ input:focus {
   color: var(--text-muted);
 }
 
+.spectator-promo {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.spectator-promo a {
+  color: var(--accent-open);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.spectator-promo a:hover,
+.settings-about-links a:hover {
+  text-decoration: underline;
+}
+
 /* Scoreboard layout */
 .scoreboard {
   display: flex;
