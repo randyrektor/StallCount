@@ -536,85 +536,89 @@ function LineSetup({
   return (
     <div className="line-setup">
       <div className="line-setup-grid">
-        <div className="line-setup-group">
-          <span className="line-setup-label">Players per point</span>
-          <div className="line-setup-pills">
-            {LINEUP_SIZE_OPTIONS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={`line-setup-pill${lineupSize === n ? ' is-active' : ''}`}
-                onClick={() => setSize(n)}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="line-setup-group">
-          <span className="line-setup-label">Starting split</span>
-          <div className="line-setup-split">
-            <button
-              type="button"
-              className="line-setup-pill line-setup-pill--open"
-              disabled={openCount >= lineupSize}
-              aria-label="+ Open"
-              onClick={() => onStartingOpenChange(Math.min(lineupSize, openCount + 1))}
-            >
-              + Open
-            </button>
-            <span className="line-setup-ratio">{openCount}:{womenCount}</span>
-            <button
-              type="button"
-              className="line-setup-pill line-setup-pill--women"
-              disabled={openCount <= 0}
-              aria-label="+ Women"
-              onClick={() => onStartingOpenChange(Math.max(0, openCount - 1))}
-            >
-              + Women
-            </button>
-          </div>
-        </div>
-        {onSplitCycleChange && (
+        <div className="line-setup-col">
           <div className="line-setup-group">
-            <span className="line-setup-label">Cycle</span>
+            <span className="line-setup-label">Players per point</span>
             <div className="line-setup-pills">
-              {CYCLE_OPTIONS.map((opt) => {
-                const locked = !isSplitCycleAvailable(lineupSize, openCount, opt.value);
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`line-setup-pill${splitCycle === opt.value ? ' is-active' : ''}`}
-                    disabled={locked}
-                    onClick={() => {
-                      if (!locked) onSplitCycleChange(opt.value);
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
+              {LINEUP_SIZE_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`line-setup-pill${lineupSize === n ? ' is-active' : ''}`}
+                  onClick={() => setSize(n)}
+                >
+                  {n}
+                </button>
+              ))}
             </div>
           </div>
-        )}
-        <div className="line-setup-group line-setup-group--clocks">
-          <span className="line-setup-label">
-            Score and time <span className="line-setup-optional">(optional)</span>
-          </span>
-          <div className="line-setup-clocks">
-            <label className="line-setup-clock">
-              <span>Score to</span>
-              <SoftCapInput value={softCap} onChange={onSoftCapChange} />
-            </label>
-            <label className="line-setup-clock">
-              <span>Half at</span>
-              <GameClockInput value={halfAt} onChange={onHalfAtChange} ariaLabel="Halftime reminder" />
-            </label>
-            <label className="line-setup-clock">
-              <span>End at</span>
-              <GameClockInput value={endAt} onChange={onEndAtChange} ariaLabel="Game end reminder" />
-            </label>
+          {onSplitCycleChange && (
+            <div className="line-setup-group">
+              <span className="line-setup-label">Cycle</span>
+              <div className="line-setup-pills">
+                {CYCLE_OPTIONS.map((opt) => {
+                  const locked = !isSplitCycleAvailable(lineupSize, openCount, opt.value);
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`line-setup-pill${splitCycle === opt.value ? ' is-active' : ''}`}
+                      disabled={locked}
+                      onClick={() => {
+                        if (!locked) onSplitCycleChange(opt.value);
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="line-setup-col">
+          <div className="line-setup-group">
+            <span className="line-setup-label">Starting split</span>
+            <div className="line-setup-split">
+              <button
+                type="button"
+                className="line-setup-step line-setup-step--open"
+                disabled={openCount >= lineupSize}
+                aria-label="+ Open"
+                onClick={() => onStartingOpenChange(Math.min(lineupSize, openCount + 1))}
+              >
+                + Open
+              </button>
+              <span className="line-setup-ratio">{openCount}:{womenCount}</span>
+              <button
+                type="button"
+                className="line-setup-step line-setup-step--women"
+                disabled={openCount <= 0}
+                aria-label="+ Women"
+                onClick={() => onStartingOpenChange(Math.max(0, openCount - 1))}
+              >
+                + Women
+              </button>
+            </div>
+          </div>
+          <div className="line-setup-group line-setup-group--clocks">
+            <span className="line-setup-label">
+              Score and time <span className="line-setup-optional">(optional)</span>
+            </span>
+            <div className="line-setup-clocks">
+              <label className="line-setup-clock">
+                <span>Score to</span>
+                <SoftCapInput value={softCap} onChange={onSoftCapChange} />
+              </label>
+              <label className="line-setup-clock">
+                <span>Half at</span>
+                <GameClockInput value={halfAt} onChange={onHalfAtChange} ariaLabel="Halftime reminder" />
+              </label>
+              <label className="line-setup-clock">
+                <span>End at</span>
+                <GameClockInput value={endAt} onChange={onEndAtChange} ariaLabel="Game end reminder" />
+              </label>
+            </div>
           </div>
         </div>
       </div>
