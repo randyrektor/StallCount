@@ -1,0 +1,53 @@
+import type { Plugin } from 'vite';
+import { WebSocketServer, type WebSocket } from 'ws';
+import { createWatchStore, parseClientMessage, type WatchSink } from '../utils/watchRoom';
+
+const PATH = '/watch-ws';
+
+function attachClient(
+  store: ReturnType<typeof createWatchStore>,
+  socket: WebSocket
+) {
+  const sink: WatchSink = (msg) => {
+    if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(msg));
+  };
+  socket.on('message', (data) => {
+    const msg = parseClientMessage(String(data));
+    if (!msg) {
+      sink({ type: 'error', error: 'bad-message' });
+      return;
+    }
+    if (msg.type === 'host') sink(store.host(msg.room, msg.key, sink));
+    else if (msg.type === 'join') sink(store.join(msg.room, sink));
+    else if (msg.type === 'put') sink(store.put(msg.room, msg.key, msg.snap));
+  });
+  socket.on('close', () => store.drop(sink));
+}
+
+export function watchRoomPlugin(): Plugin {
+  return {
+    name: 'watch-rooms',
+    configureServer(server) {
+      const wss = new WebSocketServer({ noServer: true });
+      const store = createWatchStore();
+      server.httpServer?.on('upgrade', (req, socket, head) => {
+        const pathname = req.url ? req.url.split('?')[0] : '';
+        if (pathname !== PATH) return;
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          attachClient(store, ws);
+        });
+      });
+    },
+    configurePreviewServer(server) {
+      const wss = new WebSocketServer({ noServer: true });
+      const store = createWatchStore();
+      server.httpServer?.on('upgrade', (req, socket, head) => {
+        const pathname = req.url ? req.url.split('?')[0] : '';
+        if (pathname !== PATH) return;
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          attachClient(store, ws);
+        });
+      });
+    },
+  };
+}

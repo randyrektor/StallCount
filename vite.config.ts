@@ -1,12 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { watchRoomPlugin } from './src/vite/watchRoomPlugin'
 
 /**
- * Vite `base` must match where the browser loads the app from:
- * - Subdomain Pages: https://score-app-xxxx.gitlab.io/ → base '/'
- * - Project path Pages: https://group.gitlab.io/score-app/ → base '/score-app/'
- *
- * In CI, prefer CI_PAGES_URL (set by GitLab on Pages jobs). Override anytime with PAGES_BASE or VITE_BASE (e.g. '/' or '/score-app/').
+ * Vite `base` must match where the browser loads the app from.
+ * stall.party / Cloudflare: base '/'
+ * GitLab Pages path deploys still use CI_PAGES_URL or PAGES_BASE.
  */
 function viteBase(): string {
   const explicit = process.env.PAGES_BASE ?? process.env.VITE_BASE
@@ -34,7 +33,7 @@ function viteBase(): string {
 // https://vitejs.dev/config/
 export default defineConfig({
   base: viteBase(),
-  plugins: [react()],
+  plugins: [react(), watchRoomPlugin()],
   server: {
     port: 3000,
     open: true

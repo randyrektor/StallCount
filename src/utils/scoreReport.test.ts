@@ -1,0 +1,51 @@
+import { describe, it, expect } from 'vitest';
+import { tallyPointsPlayed, buildScoreReport } from './scoreReport';
+import type { Player } from '../types';
+
+const p = (name: string, gender: 'O' | 'W'): Player => ({
+  uuid: name,
+  name,
+  gender,
+  number: 0,
+});
+
+describe('tallyPointsPlayed', () => {
+  it('counts completed points per player and sorts high to low', () => {
+    const roster = [p('Ada', 'O'), p('Bo', 'O'), p('Cy', 'W')];
+    const tallied = tallyPointsPlayed(roster, [
+      { team: 1, pointNumber: 1, linePlayerIds: ['Ada', 'Cy'] },
+      { team: 2, pointNumber: 2, linePlayerIds: ['Ada', 'Bo'] },
+    ]);
+    expect(tallied.map((x) => [x.name, x.points])).toEqual([
+      ['Ada', 2],
+      ['Bo', 1],
+      ['Cy', 1],
+    ]);
+  });
+});
+
+describe('buildScoreReport', () => {
+  it('includes points played and soft cap', () => {
+    const roster = [p('Ada', 'O')];
+    const text = buildScoreReport({
+      team1Name: 'Us',
+      team2Name: 'Them',
+      team1Score: 1,
+      team2Score: 0,
+      pointNumber: 2,
+      lineupSize: 7,
+      startingOpen: 4,
+      splitCycle: 'same',
+      softCap: 13,
+      roster,
+      masterOpenQueue: roster,
+      masterWomenQueue: [],
+      currentLine: roster,
+      scoreHistory: [{ team: 1, pointNumber: 1, linePlayerIds: ['Ada'] }],
+      generatedAt: new Date('2026-09-15T12:00:00'),
+    });
+    expect(text).toContain('POINTS PLAYED:');
+    expect(text).toContain('Ada (Open): 1');
+    expect(text).toContain('Soft point cap: 13');
+  });
+});

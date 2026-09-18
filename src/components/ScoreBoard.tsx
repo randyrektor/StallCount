@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Player, type LineupSize, type SplitCycle } from '../types';
 import { getGenderPattern, isSplitCycleAvailable } from '../utils/rotationHelpers';
 import { getLineSeats } from '../utils/lineRotation';
+import { isSoftCapReached, type SoftPointCap } from '../utils/softCap';
+import { GenderCyclePills } from './GenderCyclePills';
 import { THEME } from '../constants';
 import { AppShell } from './AppShell';
 import { PlayerSeat } from './PlayerSeat';
@@ -24,6 +26,14 @@ function normSubName(name: string): string {
   return name.trim().toLowerCase();
 }
 
+function replayScoreFlash(el: HTMLElement | null) {
+  if (!el) return;
+  el.classList.remove('score-tile--flash');
+  // Force a style recalc so the CSS animation can restart on rapid clicks.
+  void el.offsetWidth;
+  el.classList.add('score-tile--flash');
+}
+
 // Decorative blob tints (only render in dark mode; CSS hides them in light mode)
 const BLOB_COLORS = {
   blue: 'rgba(74, 144, 226, 0.15)',
@@ -31,44 +41,13 @@ const BLOB_COLORS = {
   purple: 'rgba(147, 51, 234, 0.15)',
 };
 
-// Add CSS keyframes for flash animation
-const flashKeyframes = `
-  @keyframes scoreFlash {
-    0% {
-      background-color: rgba(255, 255, 255, 0.05);
-      border-color: transparent;
-      box-shadow: none;
-      transform: scale(1);
-    }
-    40% {
-      background-color: rgba(46, 204, 113, 0.4);
-      border-color: rgba(46, 204, 113, 0.9);
-      box-shadow: 0 0 20px rgba(46, 204, 113, 0.7);
-      transform: scale(1.02);
-    }
-    100% {
-      background-color: rgba(255, 255, 255, 0.05);
-      border-color: transparent;
-      box-shadow: none;
-      transform: scale(1);
-    }
-  }
-`;
-
-// Inject the keyframes into the document
-if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
-  style.textContent = flashKeyframes;
-  document.head.appendChild(style);
-}
-
 interface ScoreBoardProps {
   team1Name: string;
   team2Name: string;
   team1Score: number;
   team2Score: number;
-  onTeam1ScoreChange: (score: number) => void;
-  onTeam2ScoreChange: (score: number) => void;
+  onTeam1ScoreChange: () => void;
+  onTeam2ScoreChange: () => void;
   lineIndex: number;
   pointNumber: number;
   onReset: () => void;
@@ -76,6 +55,7 @@ interface ScoreBoardProps {
   startingOpen?: number;
   lineupSize?: LineupSize;
   splitCycle?: SplitCycle;
+  softCap?: SoftPointCap;
   setSettingsVisible: (visible: boolean) => void;
   onOpenRoster?: () => void;
   pendingCount?: number;
@@ -105,6 +85,7 @@ export function ScoreBoard({
   startingOpen = 4,
   lineupSize = 7,
   splitCycle = 'ABBA',
+  softCap = null,
   setSettingsVisible,
   onOpenRoster,
   pendingCount = 0,
@@ -119,14 +100,9 @@ export function ScoreBoard({
   onBackToSetup,
   onSubstitute,
 }: ScoreBoardProps) {
-  const abbaPattern = ['A', 'B', 'B', 'A'] as const;
-  const aabPattern = ['A', 'A', 'B'] as const;
-  const patternIndexAbba = ((lineIndex % 4) + 4) % 4;
-  const patternIndexAab = ((lineIndex % 3) + 3) % 3;
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [flashTeam1, setFlashTeam1] = useState(false);
-  const [flashTeam2, setFlashTeam2] = useState(false);
   const [subOut, setSubOut] = useState<Player | null>(null);
+  const team1TileRef = useRef<HTMLButtonElement>(null);
+  const team2TileRef = useRef<HTMLButtonElement>(null);
 
   openQueue = openQueue || [];
   womanQueue = womanQueue || [];
@@ -143,25 +119,25 @@ export function ScoreBoard({
   const nextSeats = getLineSeats(nextOpenQueue, nextWomanQueue, nextPattern);
 
   const scoreDiff = team1Score - team2Score;
+  const capReached = isSoftCapReached(team1Score, team2Score, softCap);
   const scoreDiffColor =
     scoreDiff > 0 ? THEME.success : scoreDiff < 0 ? THEME.danger : COLORS.text;
 
-  // Use the same window slices App passes as props (not only getLine), and match by
-  // gender+name as well as uuid so roster rows still align if UUIDs ever diverge.
-  const onFieldSlots = [...openQueue, ...womanQueue];
-  const onFieldUuids = new Set(onFieldSlots.map((p) => p.uuid));
-  const onFieldGenderNames = new Set(
-    onFieldSlots.map((p) => `${p.gender}:${normSubName(p.name)}`)
-  );
-
   const subCandidates = subOut
-    ? roster.filter((p) => {
-        if (p.gender !== subOut.gender) return false;
-        if (p.uuid === subOut.uuid) return false;
-        if (onFieldUuids.has(p.uuid)) return false;
-        if (onFieldGenderNames.has(`${p.gender}:${normSubName(p.name)}`)) return false;
-        return true;
-      })
+    ? (() => {
+        const onFieldSlots = [...openQueue, ...womanQueue];
+        const onFieldUuids = new Set(onFieldSlots.map((p) => p.uuid));
+        const onFieldGenderNames = new Set(
+          onFieldSlots.map((p) => `${p.gender}:${normSubName(p.name)}`)
+        );
+        return roster.filter((p) => {
+          if (p.gender !== subOut.gender) return false;
+          if (p.uuid === subOut.uuid) return false;
+          if (onFieldUuids.has(p.uuid)) return false;
+          if (onFieldGenderNames.has(`${p.gender}:${normSubName(p.name)}`)) return false;
+          return true;
+        });
+      })()
     : [];
 
   const closeSubPicker = useCallback(() => setSubOut(null), []);
@@ -183,57 +159,15 @@ export function ScoreBoard({
   };
 
   const handleScoreClick = (team: 'team1' | 'team2') => {
-    if (!gameStarted || isAnimating) return;
-    setIsAnimating(true);
+    if (!gameStarted || capReached) return;
     if (team === 'team1') {
-      setFlashTeam1(true);
-      onTeam1ScoreChange(team1Score + 1);
-      setTimeout(() => setFlashTeam1(false), 300);
+      replayScoreFlash(team1TileRef.current);
+      onTeam1ScoreChange();
     } else {
-      setFlashTeam2(true);
-      onTeam2ScoreChange(team2Score + 1);
-      setTimeout(() => setFlashTeam2(false), 300);
+      replayScoreFlash(team2TileRef.current);
+      onTeam2ScoreChange();
     }
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 300);
   };
-
-  // Add overlay style for flash effect
-  const flashOverlayStyle = {
-    position: 'absolute' as const,
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    borderRadius: '12px',
-    pointerEvents: 'none' as const,
-    zIndex: 0,
-    backgroundColor: 'rgba(46, 204, 113, 0.4)', // green
-    border: '2px solid rgba(46, 204, 113, 0.9)',
-    boxShadow: '0 0 20px rgba(46, 204, 113, 0.7)',
-    animation: 'scoreFlashOverlay 0.3s ease-out',
-  };
-
-  // Add keyframes for overlay flash (inject if not present)
-  if (typeof document !== 'undefined' && !document.getElementById('score-flash-overlay-keyframes')) {
-    const style = document.createElement('style');
-    style.id = 'score-flash-overlay-keyframes';
-    style.textContent = `
-      @keyframes scoreFlashOverlay {
-        0% {
-          opacity: 0;
-        }
-        40% {
-          opacity: 1;
-        }
-        100% {
-          opacity: 0;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
 
   return (
     <AppShell
@@ -267,24 +201,27 @@ export function ScoreBoard({
         )
       }
       right={
-        gameStarted ? (
-          <button className="btn btn-ghost" onClick={() => setSettingsVisible(true)}>
-            Settings
-          </button>
-        ) : null
+        <button className="btn btn-ghost" onClick={() => setSettingsVisible(true)}>
+          Settings
+        </button>
       }
     >
     <div className="scoreboard">
       <div className="score-top-bar">
         <div className="score-teams">
           <button
+            ref={team1TileRef}
             className="score-tile"
             data-team="team1"
             onClick={() => handleScoreClick('team1')}
-            aria-disabled={!gameStarted}
-            style={{ opacity: 1, cursor: gameStarted ? 'pointer' : 'not-allowed' }}
+            onAnimationEnd={(e) => {
+              if (e.animationName === 'scoreFlashOverlay') {
+                e.currentTarget.classList.remove('score-tile--flash');
+              }
+            }}
+            aria-disabled={!gameStarted || capReached}
+            style={{ opacity: 1, cursor: gameStarted && !capReached ? 'pointer' : 'not-allowed' }}
           >
-            {flashTeam1 && <div style={flashOverlayStyle}></div>}
             <h2 className="score-team-name" style={{ position: 'relative', zIndex: 1 }}>{team1Name}</h2>
             <h1 className="score-num" style={{ position: 'relative', zIndex: 1 }}>{team1Score}</h1>
           </button>
@@ -292,13 +229,18 @@ export function ScoreBoard({
             {scoreDiff !== 0 ? scoreDiff : '0'}
           </div>
           <button
+            ref={team2TileRef}
             className="score-tile"
             data-team="team2"
             onClick={() => handleScoreClick('team2')}
-            aria-disabled={!gameStarted}
-            style={{ opacity: 1, cursor: gameStarted ? 'pointer' : 'not-allowed' }}
+            onAnimationEnd={(e) => {
+              if (e.animationName === 'scoreFlashOverlay') {
+                e.currentTarget.classList.remove('score-tile--flash');
+              }
+            }}
+            aria-disabled={!gameStarted || capReached}
+            style={{ opacity: 1, cursor: gameStarted && !capReached ? 'pointer' : 'not-allowed' }}
           >
-            {flashTeam2 && <div style={flashOverlayStyle}></div>}
             <h2 className="score-team-name" style={{ position: 'relative', zIndex: 1 }}>{team2Name}</h2>
             <h1 className="score-num" style={{ position: 'relative', zIndex: 1 }}>{team2Score}</h1>
           </button>
@@ -340,31 +282,17 @@ export function ScoreBoard({
         <div className="line-info-row">
           <div className="line-info-point">
             <span>Point {pointNumber}</span>
+            {softCap != null && (
+              <span className={`line-info-cap${capReached ? ' is-reached' : ''}`}>
+                {capReached ? `Cap ${softCap}` : `To ${softCap}`}
+              </span>
+            )}
           </div>
           <div className="score-diff score-diff--center" style={{ color: scoreDiffColor }}>
             {scoreDiff !== 0 ? scoreDiff : '0'}
           </div>
-          {splitCycle === 'ABBA' && isSplitCycleAvailable(lineupSize, startingOpen, 'ABBA') && (
-            <div className="line-info-pattern">
-              <div className="pattern-display">
-                {abbaPattern.map((p, i) => (
-                  <div key={i} className={`pattern-item${patternIndexAbba === i ? ' is-active' : ''}`}>
-                    <span>{p}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {splitCycle === 'AAB' && isSplitCycleAvailable(lineupSize, startingOpen, 'AAB') && (
-            <div className="line-info-pattern">
-              <div className="pattern-display">
-                {aabPattern.map((p, i) => (
-                  <div key={i} className={`pattern-item${patternIndexAab === i ? ' is-active' : ''}`}>
-                    <span>{p}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {isSplitCycleAvailable(lineupSize, startingOpen, splitCycle) && (
+            <GenderCyclePills splitCycle={splitCycle} lineIndex={lineIndex} />
           )}
         </div>
       </div>
@@ -372,9 +300,9 @@ export function ScoreBoard({
         <div className="line-section">
           <h3 className="line-title">Current Line</h3>
           <div className="player-list">
-            {currentSeats.map((seat) => (
+            {currentSeats.map((seat, i) => (
               <div
-                key={seat.kind === 'player' ? seat.player.uuid : seat.key}
+                key={`current-${i}`}
                 className="player-seat-row"
               >
                 {seat.kind === 'player' ? (
@@ -407,16 +335,16 @@ export function ScoreBoard({
         <div className="line-section">
           <h3 className="line-title">Next Line</h3>
           <div className="player-list">
-            {nextSeats.map((seat) =>
+            {nextSeats.map((seat, i) =>
               seat.kind === 'player' ? (
                 <PlayerSeat
-                  key={seat.player.uuid}
+                  key={`next-${i}`}
                   gender={seat.player.gender}
                   name={seat.player.name}
                   tone="next"
                 />
               ) : (
-                <PlayerSeat key={seat.key} gender={seat.gender} empty />
+                <PlayerSeat key={`next-${i}`} gender={seat.gender} empty />
               )
             )}
           </div>

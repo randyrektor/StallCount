@@ -1,26 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { COLORS, THEME } from '../constants';
 import { AppShell } from './AppShell';
+import {
+  loadRecentTeams,
+  rememberRecentTeam,
+  removeRecentTeam,
+  saveRecentTeams,
+} from '../utils/recentTeams';
 
 interface HomeScreenProps {
   onStart: (teamName: string) => void;
+  onResume?: () => void;
+  resumeLabel?: string | null;
 }
 
-export function HomeScreen({ onStart }: HomeScreenProps) {
+export function HomeScreen({ onStart, onResume, resumeLabel }: HomeScreenProps) {
   const [teamName, setTeamName] = useState('');
   const [savedTeams, setSavedTeams] = useState<string[]>([]);
 
   useEffect(() => {
-    // Load saved teams from localStorage
-    const saved = localStorage.getItem('ultimate-teams');
-    if (saved) {
-      try {
-        const teams = JSON.parse(saved);
-        setSavedTeams(teams);
-      } catch (e) {
-        console.error('Error loading saved teams:', e);
-      }
-    }
+    setSavedTeams(loadRecentTeams());
   }, []);
 
   const handleStart = () => {
@@ -29,16 +28,23 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
       return;
     }
 
-    // Save team to history if not already there
     const trimmedName = teamName.trim();
-    const updatedTeams = [trimmedName, ...savedTeams.filter(t => t !== trimmedName)].slice(0, 5); // Keep last 5 teams
-    localStorage.setItem('ultimate-teams', JSON.stringify(updatedTeams));
-    
+    const updatedTeams = rememberRecentTeam(savedTeams, trimmedName);
+    saveRecentTeams(updatedTeams);
+    setSavedTeams(updatedTeams);
+
     onStart(trimmedName);
   };
 
   const handleSelectTeam = (name: string) => {
     setTeamName(name);
+  };
+
+  const handleRemoveTeam = (name: string) => {
+    const updatedTeams = removeRecentTeam(savedTeams, name);
+    saveRecentTeams(updatedTeams);
+    setSavedTeams(updatedTeams);
+    if (teamName === name) setTeamName('');
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -70,18 +76,38 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
             <div style={styles.savedTeamsSection}>
               <label style={styles.label}>Recent Teams</label>
               <div style={styles.teamList}>
-                {savedTeams.map((team, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    className={`recent-team${teamName === team ? ' is-selected' : ''}`}
-                    onClick={() => handleSelectTeam(team)}
-                  >
-                    {team}
-                  </button>
+                {savedTeams.map((team) => (
+                  <div key={team} className="recent-team-row">
+                    <button
+                      type="button"
+                      className={`recent-team${teamName === team ? ' is-selected' : ''}`}
+                      onClick={() => handleSelectTeam(team)}
+                    >
+                      {team}
+                    </button>
+                    <button
+                      type="button"
+                      className="recent-team-remove"
+                      aria-label={`Remove ${team} from recent teams`}
+                      onClick={() => handleRemoveTeam(team)}
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
+          )}
+
+          {onResume && resumeLabel && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ ...styles.startButton, marginBottom: 12, backgroundColor: 'transparent', color: THEME.text, border: `1.5px solid ${THEME.borderSoft}`, boxShadow: 'none' }}
+              onClick={onResume}
+            >
+              Resume {resumeLabel}
+            </button>
           )}
 
           <button

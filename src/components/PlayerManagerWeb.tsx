@@ -12,6 +12,8 @@ import {
   getGenderPattern,
 } from '../utils/rotationHelpers';
 import { parseRosterText, rosterToCsv, type ParsedRosterRow } from '../utils/rosterImport';
+import { type SoftPointCap } from '../utils/softCap';
+import { SoftCapInput } from './SoftCapInput';
 
 const COLORS = {
   background: THEME.bgPage,
@@ -48,6 +50,8 @@ interface PlayerManagerWebProps {
   onLineupSizeChange?: (size: LineupSize) => void;
   onStartingOpenChange?: (open: number) => void;
   onSplitCycleChange?: (cycle: SplitCycle) => void;
+  softCap?: SoftPointCap;
+  onSoftCapChange?: (cap: SoftPointCap) => void;
   onImportPlayers?: (rows: ParsedRosterRow[]) => { added: number; skipped: number };
 }
 
@@ -476,16 +480,20 @@ function LineSetup({
   lineupSize,
   startingOpen,
   splitCycle,
+  softCap,
   onLineupSizeChange,
   onStartingOpenChange,
   onSplitCycleChange,
+  onSoftCapChange,
 }: {
   lineupSize: LineupSize;
   startingOpen: number;
   splitCycle: SplitCycle;
+  softCap: SoftPointCap;
   onLineupSizeChange: (size: LineupSize) => void;
   onStartingOpenChange: (open: number) => void;
   onSplitCycleChange?: (cycle: SplitCycle) => void;
+  onSoftCapChange: (cap: SoftPointCap) => void;
 }) {
   const openCount = clampOpenCount(startingOpen, lineupSize);
   const womenCount = lineupSize - openCount;
@@ -501,7 +509,7 @@ function LineSetup({
 
   return (
     <div className="line-setup">
-      <div className="line-setup-primary">
+      <div className="line-setup-grid">
         <div className="line-setup-group">
           <span className="line-setup-label">Players per point</span>
           <div className="line-setup-pills">
@@ -541,9 +549,7 @@ function LineSetup({
             </button>
           </div>
         </div>
-      </div>
-      {onSplitCycleChange && (
-        <div className="line-setup-secondary">
+        {onSplitCycleChange && (
           <div className="line-setup-group">
             <span className="line-setup-label">Cycle</span>
             <div className="line-setup-pills">
@@ -565,8 +571,12 @@ function LineSetup({
               })}
             </div>
           </div>
+        )}
+        <div className="line-setup-group line-setup-group--cap">
+          <span className="line-setup-label">Soft point cap</span>
+          <SoftCapInput value={softCap} onChange={onSoftCapChange} />
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -593,6 +603,8 @@ export function PlayerManagerWeb({
   onStartingOpenChange,
   onSplitCycleChange,
   onImportPlayers,
+  softCap = null,
+  onSoftCapChange,
 }: PlayerManagerWebProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [openDraft, setOpenDraft] = useState('');
@@ -797,14 +809,16 @@ export function PlayerManagerWeb({
             </div>
           )}
 
-          {isLineStep && onLineupSizeChange && onStartingOpenChange && (
+          {isLineStep && onLineupSizeChange && onStartingOpenChange && onSoftCapChange && (
             <LineSetup
               lineupSize={lineupSize}
               startingOpen={startingOpen}
               splitCycle={splitCycle}
+              softCap={softCap}
               onLineupSizeChange={onLineupSizeChange}
               onStartingOpenChange={onStartingOpenChange}
               onSplitCycleChange={onSplitCycleChange}
+              onSoftCapChange={onSoftCapChange}
             />
           )}
 

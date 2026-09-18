@@ -1,4 +1,5 @@
 import type { Player, LineupSize, SplitCycle } from '../types';
+import type { SoftPointCap } from './softCap';
 
 export const GAME_SESSION_KEY = 'ultimate-active-game';
 
@@ -9,6 +10,7 @@ export type PersistedScoreEvent = {
   openIndex: number;
   womenIndex: number;
   pendingPlayerIds: string[];
+  linePlayerIds?: string[];
 };
 
 export type GameSession = {
@@ -30,8 +32,11 @@ export type GameSession = {
   lineupSize: LineupSize;
   startingOpen: number;
   splitCycle: SplitCycle;
+  softCap?: SoftPointCap;
   showRoster: boolean;
   setupStep: 'roster' | 'line';
+  watchRoomId?: string;
+  watchWriteKey?: string;
 };
 
 function isLineupSize(n: unknown): n is LineupSize {
@@ -60,6 +65,41 @@ export function saveGameSession(session: GameSession): void {
   } catch {
     // quota
   }
+}
+
+let pendingSession: GameSession | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let flushBound = false;
+
+function flushPendingGameSession(): void {
+  if (saveTimer != null) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (!pendingSession) return;
+  const next = pendingSession;
+  pendingSession = null;
+  saveGameSession(next);
+}
+
+function bindSessionFlushListeners(): void {
+  if (flushBound || typeof window === 'undefined') return;
+  flushBound = true;
+  window.addEventListener('pagehide', flushPendingGameSession);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingGameSession();
+  });
+}
+
+/** Coalesce rapid score clicks so stringify+localStorage is not on the hot path. */
+export function scheduleSaveGameSession(session: GameSession, delayMs = 250): void {
+  pendingSession = session;
+  bindSessionFlushListeners();
+  if (saveTimer != null) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    flushPendingGameSession();
+  }, delayMs);
 }
 
 export function clearGameSession(): void {

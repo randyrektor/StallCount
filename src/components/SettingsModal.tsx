@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Player, type LineupSize, type SplitCycle, type Theme } from '../types';
 import {
   isSplitCycleAvailable,
@@ -8,15 +8,11 @@ import { THEME } from '../constants';
 import {
   buildScoreReport,
   downloadTextFile,
-  mailtoShareUrl,
   scoreShareTitle,
-  whatsAppShareUrl,
 } from '../utils/scoreReport';
-import {
-  qrImageUrl,
-  spectatorUrlFromLocation,
-  type SpectatorSnapshot,
-} from '../utils/spectatorState';
+import { qrImageUrl } from '../utils/spectatorState';
+import { type SoftPointCap } from '../utils/softCap';
+import { SoftCapInput } from './SoftCapInput';
 
 /** Compact ratio like "4:2" (open : women-matching). */
 function formatRatio(men: number, women: number): string {
@@ -59,10 +55,14 @@ interface SettingsModalProps {
   onLineupSizeChange: (size: LineupSize) => void;
   splitCycle: SplitCycle;
   onSplitCycleChange: (cycle: SplitCycle) => void;
+  softCap: SoftPointCap;
+  onSoftCapChange: (cap: SoftPointCap) => void;
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
   onReset: () => void;
   onChangeTeam?: () => void;
+  onPreviewScoreReader?: () => void;
+  spectatorLink?: string;
   // Export functionality props
   team1Score: number;
   team2Score: number;
@@ -90,10 +90,14 @@ export function SettingsModal({
   onLineupSizeChange,
   splitCycle,
   onSplitCycleChange,
+  softCap,
+  onSoftCapChange,
   theme,
   onThemeChange,
   onReset,
   onChangeTeam,
+  onPreviewScoreReader,
+  spectatorLink = '',
   team1Score,
   team2Score,
   pointNumber,
@@ -111,6 +115,7 @@ export function SettingsModal({
   const [localStartingOpen, setLocalStartingOpen] = useState(startingOpen);
   const [localLineupSize, setLocalLineupSize] = useState<LineupSize>(lineupSize);
   const [localSplitCycle, setLocalSplitCycle] = useState<SplitCycle>(splitCycle);
+  const [localSoftCap, setLocalSoftCap] = useState<SoftPointCap>(softCap);
   const [localTheme, setLocalTheme] = useState<Theme>(theme);
   const [shareStatus, setShareStatus] = useState('');
 
@@ -121,8 +126,9 @@ export function SettingsModal({
     setLocalStartingOpen(startingOpen);
     setLocalLineupSize(lineupSize);
     setLocalSplitCycle(splitCycle);
+    setLocalSoftCap(softCap);
     setLocalTheme(theme);
-  }, [visible, team1Name, team2Name, startingOpen, lineupSize, splitCycle, theme]);
+  }, [visible, team1Name, team2Name, startingOpen, lineupSize, splitCycle, softCap, theme]);
 
   // Apply the chosen theme live as the user toggles, so they can see contrast
   // before saving. Reverts on cancel via handleCancel.
@@ -146,6 +152,7 @@ export function SettingsModal({
     onSplitCycleChange(
       isSplitCycleAvailable(localLineupSize, open, localSplitCycle) ? localSplitCycle : 'same'
     );
+    onSoftCapChange(localSoftCap);
     onThemeChange(localTheme);
     onClose();
   };
@@ -156,6 +163,7 @@ export function SettingsModal({
     setLocalStartingOpen(startingOpen);
     setLocalLineupSize(lineupSize);
     setLocalSplitCycle(splitCycle);
+    setLocalSoftCap(softCap);
     setLocalTheme(theme);
     // Revert any live theme preview from the modal.
     document.documentElement.dataset.theme = theme;
@@ -188,6 +196,7 @@ export function SettingsModal({
     lineupSize,
     startingOpen,
     splitCycle,
+    softCap,
     roster,
     masterOpenQueue,
     masterWomenQueue,
@@ -195,23 +204,6 @@ export function SettingsModal({
     scoreHistory,
   });
   const shareTitle = scoreShareTitle(team1Name, team2Name, team1Score, team2Score);
-
-  const spectatorSnap: SpectatorSnapshot = useMemo(
-    () => ({
-      v: 1,
-      us: team1Name,
-      them: team2Name,
-      s1: team1Score,
-      s2: team2Score,
-      point: pointNumber,
-      line: currentLine.map((p) => p.name),
-      next: nextLine.map((p) => p.name),
-    }),
-    [team1Name, team2Name, team1Score, team2Score, pointNumber, currentLine, nextLine]
-  );
-
-  const spectatorLink =
-    typeof window !== 'undefined' ? spectatorUrlFromLocation(spectatorSnap) : '';
 
   const handleExportScore = () => {
     const gameDate = new Date().toLocaleDateString();
@@ -223,7 +215,7 @@ export function SettingsModal({
       await navigator.clipboard.writeText(reportText);
       setShareStatus('Copied score report');
     } catch {
-      setShareStatus('Copy failed — use Share or Email');
+      setShareStatus('Copy failed — try Share or Download');
     }
   };
 
@@ -424,24 +416,23 @@ export function SettingsModal({
               <h3 style={styles.cardTitle}>Game</h3>
             </div>
             <div style={styles.cardContent}>
+              <label style={styles.label} htmlFor="settings-soft-cap">
+                Soft point cap
+              </label>
+              <p style={styles.spectatorHint}>
+                First team to this score wins. Leave blank for no cap.
+              </p>
+              <div style={{ marginBottom: 16 }}>
+                <SoftCapInput
+                  id="settings-soft-cap"
+                  value={localSoftCap}
+                  onChange={setLocalSoftCap}
+                />
+              </div>
               <div style={styles.compactActions}>
                 <button type="button" style={styles.compactAction} onClick={handleNativeShare}>
                   Share
                 </button>
-                <button type="button" style={styles.compactAction} onClick={handleCopyScore}>
-                  Copy
-                </button>
-                <a
-                  style={styles.compactAction}
-                  href={whatsAppShareUrl(reportText)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WhatsApp
-                </a>
-                <a style={styles.compactAction} href={mailtoShareUrl(shareTitle, reportText)}>
-                  Email
-                </a>
                 <button type="button" style={styles.compactAction} onClick={handleExportScore}>
                   Download
                 </button>
@@ -464,8 +455,8 @@ export function SettingsModal({
             </div>
             <div style={styles.cardContent}>
               <p style={styles.spectatorHint}>
-                Sideline phones scan this QR for a read-only score. It updates here as you
-                score; they scan again for the latest.
+                Show this QR if the other sideline wants a live score reader. They scan once
+                and leave the tab open — score, point, and gender update here.
               </p>
               {spectatorLink && (
                 <img
@@ -477,6 +468,15 @@ export function SettingsModal({
                 />
               )}
               <div style={styles.compactActions}>
+                {onPreviewScoreReader && (
+                  <button
+                    type="button"
+                    style={styles.compactAction}
+                    onClick={onPreviewScoreReader}
+                  >
+                    Preview reader
+                  </button>
+                )}
                 <button type="button" style={styles.compactAction} onClick={handleCopySpectatorLink}>
                   Copy link
                 </button>
@@ -520,7 +520,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1000,
+    zIndex: 3000,
   },
   modal: {
     backgroundColor: COLORS.card,

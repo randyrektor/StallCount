@@ -1,5 +1,5 @@
 // ScoreboardApp.tsx
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Player, type LineupSize, type SplitCycle, type Theme } from './src/types';
 import { PlayerManager } from './src/components/PlayerManager';
 import { ScoreBoard } from './src/components/ScoreBoard';
@@ -26,10 +26,18 @@ import {
 import { COLORS } from './src/constants';
 import { loadRosterForTeam, saveRosterForTeam } from './src/utils/rosterStorage';
 import { mergeImportedPlayers, type ParsedRosterRow } from './src/utils/rosterImport';
-import { loadGameSession, saveGameSession, clearGameSession } from './src/utils/gameSession';
-import { parseSpectatorHash, type SpectatorSnapshot } from './src/utils/spectatorState';
+import { loadGameSession, scheduleSaveGameSession, clearGameSession, type GameSession } from './src/utils/gameSession';
+import { buildSpectatorSnapshot } from './src/utils/spectatorState';
+import { isSoftCapReached, parseSoftCap, type SoftPointCap } from './src/utils/softCap';
 import { SpectatorScreen } from './src/components/SpectatorScreen';
-import { AppShell } from './src/components/AppShell';
+import {
+  mintRoomId,
+  mintWriteKey,
+  parseWatchHash,
+  watchRoomUrlFromLocation,
+  type WatchHash,
+} from './src/utils/watchRoom';
+import { useWatchHost, useWatchViewer } from './src/hooks/useWatchRoom';
 
 // No hardcoded roster - players are added each game
 
@@ -43,6 +51,13 @@ interface ScoreEvent {
   womenIndex: number;
   /** Pending at the moment of the score, before they may rotate in. */
   pendingPlayerIds: string[];
+  /** Who was on the field for the point that just ended. */
+  linePlayerIds: string[];
+}
+
+function readSoftCap(): SoftPointCap {
+  if (typeof window === 'undefined') return null;
+  return parseSoftCap(window.localStorage.getItem('ultimate-soft-cap'));
 }
 
 function readLineupSize(): LineupSize {
@@ -85,8 +100,9 @@ function readStartingOpen(size: LineupSize): number {
 
 export default function App() {
   const prevLineIndexRef = useRef(0);
-  const [showHomeScreen, setShowHomeScreen] = useState<boolean | null>(null); // null = loading
+  const [showHomeScreen, setShowHomeScreen] = useState(true);
   const [sessionReady, setSessionReady] = useState(false);
+  const [resumeLabel, setResumeLabel] = useState<string | null>(null);
   const [showRoster, setShowRoster] = useState(false);
   const [setupStep, setSetupStep] = useState<'roster' | 'line'>('roster');
   const [team1Name, setTeam1Name] = useState('');
@@ -104,6 +120,7 @@ export default function App() {
   const [lineupSize, setLineupSize] = useState<LineupSize>(() => readLineupSize());
   const [startingOpen, setStartingOpen] = useState(() => readStartingOpen(readLineupSize()));
   const [splitCycle, setSplitCycle] = useState<SplitCycle>(() => readSplitCycle());
+  const [softCap, setSoftCap] = useState<SoftPointCap>(() => readSoftCap());
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === 'undefined') return 'dark';
     const saved = window.localStorage.getItem('ultimate-theme');
@@ -114,64 +131,67 @@ export default function App() {
   // Track rotation index for men and women
   const [openIndex, setOpenIndex] = useState(0);
   const [womenIndex, setWomenIndex] = useState(0);
-  const [spectator, setSpectator] = useState<SpectatorSnapshot | null>(() =>
-    typeof window === 'undefined' ? null : parseSpectatorHash(window.location.hash)
+  const [watchHash, setWatchHash] = useState<WatchHash | null>(() =>
+    typeof window === 'undefined' ? null : parseWatchHash(window.location.hash)
   );
+  const [watchRoomId, setWatchRoomId] = useState<string | null>(null);
+  const [watchWriteKey, setWatchWriteKey] = useState<string | null>(null);
+  const [previewSpectator, setPreviewSpectator] = useState(false);
+
+  const ensureWatchRoom = useCallback(() => {
+    setWatchRoomId((id) => id ?? mintRoomId());
+    setWatchWriteKey((key) => key ?? mintWriteKey());
+  }, []);
 
   useEffect(() => {
-    const onHash = () => setSpectator(parseSpectatorHash(window.location.hash));
+    const onHash = () => setWatchHash(parseWatchHash(window.location.hash));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  // Load team name from localStorage on mount; resume an in-progress game if present.
+  // Always start on team select. Only persist after kickoff so setup is not skipped.
   useEffect(() => {
     const session = loadGameSession();
-    if (session) {
-      setTeam1Name(session.team1Name);
-      setTeam2Name(session.team2Name);
-      setTeam1Score(session.team1Score);
-      setTeam2Score(session.team2Score);
-      setRoster(session.roster);
-      setMasterOpenQueue(session.masterOpenQueue);
-      setMasterWomenQueue(session.masterWomenQueue);
-      setPendingPlayers(session.pendingPlayers);
-      setGameStarted(session.gameStarted);
-      setLineIndex(session.lineIndex);
-      setPointNumber(session.pointNumber);
-      setOpenIndex(session.openIndex);
-      setWomenIndex(session.womenIndex);
-      setScoreHistory(session.scoreHistory);
-      setLineupSize(session.lineupSize);
-      setStartingOpen(session.startingOpen);
-      setSplitCycle(session.splitCycle);
-      setShowRoster(session.showRoster);
-      setSetupStep(session.setupStep);
-      setShowHomeScreen(false);
-      prevLineIndexRef.current = session.lineIndex;
-      setShowHomeScreen(false);
-      setSessionReady(true);
-      return;
+    if (session?.gameStarted && session.team1Name) {
+      setResumeLabel(
+        `${session.team1Name} ${session.team1Score}–${session.team2Score} ${session.team2Name}`
+      );
+    } else if (session && !session.gameStarted) {
+      clearGameSession();
     }
-
-    const savedTeams = localStorage.getItem('ultimate-teams');
-    if (savedTeams) {
-      try {
-        const teams = JSON.parse(savedTeams);
-        if (teams.length > 0) {
-          setShowHomeScreen(true);
-        } else {
-          setShowHomeScreen(true);
-        }
-      } catch (e) {
-        console.error('Error loading team:', e);
-        setShowHomeScreen(true);
-      }
-    } else {
-      setShowHomeScreen(true);
-    }
+    setShowHomeScreen(true);
     setSessionReady(true);
   }, []);
+
+  const applyRestoredSession = (session: GameSession) => {
+    setTeam1Name(session.team1Name);
+    setTeam2Name(session.team2Name);
+    setTeam1Score(session.team1Score);
+    setTeam2Score(session.team2Score);
+    setRoster(session.roster);
+    setMasterOpenQueue(session.masterOpenQueue);
+    setMasterWomenQueue(session.masterWomenQueue);
+    setPendingPlayers(session.pendingPlayers);
+    setGameStarted(session.gameStarted);
+    setLineIndex(session.lineIndex);
+    setPointNumber(session.pointNumber);
+    setOpenIndex(session.openIndex);
+    setWomenIndex(session.womenIndex);
+    setScoreHistory(session.scoreHistory);
+    setLineupSize(session.lineupSize);
+    setStartingOpen(session.startingOpen);
+    setSplitCycle(session.splitCycle);
+    if (session.softCap !== undefined) setSoftCap(parseSoftCap(session.softCap));
+    setShowRoster(false);
+    setSetupStep(session.setupStep);
+    prevLineIndexRef.current = session.lineIndex;
+    if (session.watchRoomId && session.watchWriteKey) {
+      setWatchRoomId(session.watchRoomId);
+      setWatchWriteKey(session.watchWriteKey);
+    }
+    setShowHomeScreen(false);
+    setResumeLabel(null);
+  };
 
   const resetScoreboardForNewSession = useCallback(() => {
     setTeam1Score(0);
@@ -184,6 +204,8 @@ export default function App() {
     setPendingPlayers([]);
     setGameStarted(false);
     prevLineIndexRef.current = 0;
+    setWatchRoomId(null);
+    setWatchWriteKey(null);
     clearGameSession();
   }, []);
 
@@ -206,9 +228,17 @@ export default function App() {
     applyNewGameRoster(loaded);
     setShowRoster(true);
     setSetupStep('roster');
+    setResumeLabel(null);
+  };
+
+  const handleResumeGame = () => {
+    const session = loadGameSession();
+    if (!session?.gameStarted) return;
+    applyRestoredSession(session);
   };
 
   const handleKickoff = () => {
+    ensureWatchRoom();
     setGameStarted(true);
     setShowRoster(false);
   };
@@ -255,10 +285,14 @@ export default function App() {
       window.localStorage.setItem('ultimate-lineup-size', String(lineupSize));
       window.localStorage.setItem('ultimate-starting-open', String(startingOpen));
       window.localStorage.setItem('ultimate-split-cycle', splitCycle);
+      window.localStorage.setItem(
+        'ultimate-soft-cap',
+        softCap == null ? 'off' : String(softCap)
+      );
     } catch {
       // ignore quota errors
     }
-  }, [lineupSize, startingOpen, splitCycle]);
+  }, [lineupSize, startingOpen, splitCycle, softCap]);
 
   // Calculate current queues based on rotation
   const currentPattern = getPattern(lineIndex);
@@ -282,50 +316,117 @@ export default function App() {
   );
   const currentLine = [...currentOpenQueue, ...currentWomanQueue];
   const nextLine = [...nextOpenQueue, ...nextWomanQueue];
+  const liveSpectatorSnapshot = useMemo(
+    () =>
+      buildSpectatorSnapshot({
+        us: team1Name,
+        them: team2Name,
+        s1: team1Score,
+        s2: team2Score,
+        point: pointNumber,
+        lineIndex,
+        lineupSize,
+        startingOpen,
+        splitCycle,
+        softCap,
+      }),
+    [
+      team1Name,
+      team2Name,
+      team1Score,
+      team2Score,
+      pointNumber,
+      lineIndex,
+      lineupSize,
+      startingOpen,
+      splitCycle,
+      softCap,
+    ]
+  );
 
-  const handleTeam1ScoreChange = (newScore: number) => {
-    if (!gameStarted) return;
-    if (newScore <= team1Score) return;
-    const currentPattern = getPattern(lineIndex);
+  const viewingRoomId = watchHash?.kind === 'room' ? watchHash.roomId : null;
+  const { snapshot: roomSnapshot, status: roomStatus } = useWatchViewer(viewingRoomId);
+  useWatchHost(
+    !viewingRoomId && !!watchRoomId && !!watchWriteKey,
+    watchRoomId,
+    watchWriteKey,
+    liveSpectatorSnapshot
+  );
+
+  useEffect(() => {
+    if (settingsVisible) ensureWatchRoom();
+  }, [settingsVisible, ensureWatchRoom]);
+
+  // Keep scoring inputs in a ref so rapid clicks don't wait for a re-render
+  // (and don't double-apply the same score from a stale closure).
+  const scoringRef = useRef({
+    gameStarted,
+    team1Score,
+    team2Score,
+    softCap,
+    lineIndex,
+    pointNumber,
+    openIndex,
+    womenIndex,
+    pendingPlayers,
+    masterOpenQueue,
+    masterWomenQueue,
+  });
+  scoringRef.current = {
+    gameStarted,
+    team1Score,
+    team2Score,
+    softCap,
+    lineIndex,
+    pointNumber,
+    openIndex,
+    womenIndex,
+    pendingPlayers,
+    masterOpenQueue,
+    masterWomenQueue,
+  };
+
+  const recordPoint = (team: 1 | 2) => {
+    const s = scoringRef.current;
+    if (!s.gameStarted) return;
+    if (isSoftCapReached(s.team1Score, s.team2Score, s.softCap)) return;
+    const pattern = getPattern(s.lineIndex);
+    const linePlayerIds = [
+      ...getWrapped(s.masterOpenQueue, s.openIndex, pattern.men),
+      ...getWrapped(s.masterWomenQueue, s.womenIndex, pattern.women),
+    ].map((p) => p.uuid);
+    const next = {
+      ...s,
+      team1Score: team === 1 ? s.team1Score + 1 : s.team1Score,
+      team2Score: team === 2 ? s.team2Score + 1 : s.team2Score,
+      openIndex: s.openIndex + pattern.men,
+      womenIndex: s.womenIndex + pattern.women,
+      lineIndex: s.lineIndex + 1,
+      pointNumber: s.pointNumber + 1,
+    };
+    scoringRef.current = next;
     setScoreHistory((prev) => [
       ...prev,
       {
-        team: 1,
-        lineIndex,
-        pointNumber,
-        openIndex,
-        womenIndex,
-        pendingPlayerIds: pendingPlayers.map((p) => p.uuid),
+        team,
+        lineIndex: s.lineIndex,
+        pointNumber: s.pointNumber,
+        openIndex: s.openIndex,
+        womenIndex: s.womenIndex,
+        pendingPlayerIds: s.pendingPlayers.map((p) => p.uuid),
+        linePlayerIds,
       },
     ]);
-    setTeam1Score(newScore);
-    setOpenIndex((prev) => prev + currentPattern.men);
-    setWomenIndex((prev) => prev + currentPattern.women);
-    setLineIndex((prev) => prev + 1);
-    setPointNumber((prev) => prev + 1);
+    if (team === 1) setTeam1Score(next.team1Score);
+    else setTeam2Score(next.team2Score);
+    setOpenIndex(next.openIndex);
+    setWomenIndex(next.womenIndex);
+    setLineIndex(next.lineIndex);
+    setPointNumber(next.pointNumber);
   };
 
-  const handleTeam2ScoreChange = (newScore: number) => {
-    if (!gameStarted) return;
-    if (newScore <= team2Score) return;
-    const currentPattern = getPattern(lineIndex);
-    setScoreHistory((prev) => [
-      ...prev,
-      {
-        team: 2,
-        lineIndex,
-        pointNumber,
-        openIndex,
-        womenIndex,
-        pendingPlayerIds: pendingPlayers.map((p) => p.uuid),
-      },
-    ]);
-    setTeam2Score(newScore);
-    setOpenIndex((prev) => prev + currentPattern.men);
-    setWomenIndex((prev) => prev + currentPattern.women);
-    setLineIndex((prev) => prev + 1);
-    setPointNumber((prev) => prev + 1);
-  };
+  const handleTeam1ScoreChange = () => recordPoint(1);
+  const handleTeam2ScoreChange = () => recordPoint(2);
 
   const handleSubstitute = useCallback(
     (outPlayer: Player, inPlayer: Player) => {
@@ -377,6 +478,8 @@ export default function App() {
     if (scoreHistory.length === 0) return;
 
     const lastEvent = scoreHistory[scoreHistory.length - 1];
+    const nextTeam1 = lastEvent.team === 1 ? scoringRef.current.team1Score - 1 : scoringRef.current.team1Score;
+    const nextTeam2 = lastEvent.team === 2 ? scoringRef.current.team2Score - 1 : scoringRef.current.team2Score;
 
     if (lastEvent.team === 1) {
       setTeam1Score(prev => prev - 1);
@@ -398,6 +501,19 @@ export default function App() {
     setMasterOpenQueue(restored.masterOpenQueue);
     setMasterWomenQueue(restored.masterWomenQueue);
     setPendingPlayers(restored.pendingPlayers);
+
+    scoringRef.current = {
+      ...scoringRef.current,
+      team1Score: nextTeam1,
+      team2Score: nextTeam2,
+      lineIndex: lastEvent.lineIndex,
+      pointNumber: lastEvent.pointNumber,
+      openIndex: lastEvent.openIndex,
+      womenIndex: lastEvent.womenIndex,
+      masterOpenQueue: restored.masterOpenQueue,
+      masterWomenQueue: restored.masterWomenQueue,
+      pendingPlayers: restored.pendingPlayers,
+    };
 
     setScoreHistory(prev => prev.slice(0, -1));
   };
@@ -542,8 +658,8 @@ export default function App() {
   }, [roster, team1Name, showHomeScreen]);
 
   useEffect(() => {
-    if (!sessionReady || showHomeScreen) return;
-    saveGameSession({
+    if (!sessionReady || showHomeScreen || !gameStarted) return;
+    scheduleSaveGameSession({
       v: 1,
       team1Name,
       team2Name,
@@ -562,8 +678,11 @@ export default function App() {
       lineupSize,
       startingOpen,
       splitCycle,
+      softCap,
       showRoster,
       setupStep,
+      watchRoomId: watchRoomId ?? undefined,
+      watchWriteKey: watchWriteKey ?? undefined,
     });
   }, [
     sessionReady,
@@ -585,29 +704,51 @@ export default function App() {
     lineupSize,
     startingOpen,
     splitCycle,
+    softCap,
     showRoster,
     setupStep,
+    watchRoomId,
+    watchWriteKey,
   ]);
 
-  if (spectator) {
+  if (watchHash?.kind === 'snapshot') {
     return (
       <SpectatorScreen
-        snapshot={spectator}
+        snapshot={watchHash.snapshot}
+        linkStatus="snapshot"
         onLeave={() => {
           window.location.hash = '';
-          setSpectator(null);
+          setWatchHash(null);
         }}
       />
     );
   }
 
-  // Show loading state briefly while checking localStorage
-  if (showHomeScreen === null) {
-    return <AppShell showHeader={false} />;
+  if (viewingRoomId) {
+    return (
+      <SpectatorScreen
+        snapshot={roomSnapshot}
+        linkStatus={roomStatus}
+        onLeave={() => {
+          window.location.hash = '';
+          setWatchHash(null);
+        }}
+      />
+    );
+  }
+
+  if (previewSpectator) {
+    return (
+      <SpectatorScreen
+        snapshot={liveSpectatorSnapshot}
+        linkStatus="preview"
+        onLeave={() => setPreviewSpectator(false)}
+      />
+    );
   }
 
   if (showHomeScreen) {
-    return <HomeScreen onStart={handleStartGame} />;
+    return <HomeScreen onStart={handleStartGame} onResume={resumeLabel ? handleResumeGame : undefined} resumeLabel={resumeLabel} />;
   }
 
   return (
@@ -637,12 +778,14 @@ export default function App() {
           lineupSize={lineupSize}
           startingOpen={startingOpen}
           splitCycle={splitCycle}
+          softCap={softCap}
           onLineupSizeChange={(size) => {
             setLineupSize(size);
             setStartingOpen((open) => clampOpenCount(open, size));
           }}
           onStartingOpenChange={setStartingOpen}
           onSplitCycleChange={setSplitCycle}
+          onSoftCapChange={setSoftCap}
           onImportPlayers={handleImportPlayers}
         />
       ) : (
@@ -660,6 +803,7 @@ export default function App() {
           startingOpen={startingOpen}
           lineupSize={lineupSize}
           splitCycle={splitCycle}
+          softCap={softCap}
           setSettingsVisible={setSettingsVisible}
           onOpenRoster={() => {
             setShowRoster(true);
@@ -681,6 +825,7 @@ export default function App() {
           onSubstitute={handleSubstitute}
         />
       )}
+      {settingsVisible && (
       <SettingsModal
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
@@ -697,10 +842,17 @@ export default function App() {
         }}
         splitCycle={splitCycle}
         onSplitCycleChange={setSplitCycle}
+        softCap={softCap}
+        onSoftCapChange={setSoftCap}
         theme={theme}
         onThemeChange={setTheme}
         onReset={handleReset}
         onChangeTeam={handleChangeTeam}
+        onPreviewScoreReader={() => {
+          setSettingsVisible(false);
+          setPreviewSpectator(true);
+        }}
+        spectatorLink={watchRoomId ? watchRoomUrlFromLocation(watchRoomId) : ''}
         team1Score={team1Score}
         team2Score={team2Score}
         pointNumber={pointNumber}
@@ -713,6 +865,7 @@ export default function App() {
         masterWomenQueue={masterWomenQueue}
         scoreHistory={scoreHistory}
       />
+      )}
     </>
   );
 }

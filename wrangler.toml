@@ -1,0 +1,23 @@
+# stall.party — static app + live watch rooms (Durable Objects).
+# Deploy: npm run deploy   (after wrangler login)
+name = "stall-party"
+main = "workers/watch.ts"
+compatibility_date = "2025-09-18"
+workers_dev = true
+
+[[routes]]
+pattern = "stall.party"
+custom_domain = true
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "WatchRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WatchRoom"]
