@@ -1,7 +1,7 @@
-export const APP_NAME = 'StallCount';
+export const APP_NAME = 'StallParty';
 export const APP_URL = 'https://stall.party';
 export const COPYRIGHT_HOLDER = 'Randy Rektor';
-export const GITHUB_URL = 'https://github.com/randyrektor/StallCount';
+export const GITHUB_URL = 'https://github.com/randyrektor/StallParty';
 export const KOFI_URL = 'https://ko-fi.com/randyrektor';
 
 /**

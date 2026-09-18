@@ -1,6 +1,6 @@
 {
-  "name": "StallCount",
-  "short_name": "StallCount",
+  "name": "StallParty",
+  "short_name": "StallParty",
   "description": "Ultimate frisbee score and line tracking app",
   "start_url": "/",
   "display": "standalone",

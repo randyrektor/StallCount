@@ -105,7 +105,7 @@ export function SpectatorScreen({
         <div className="spectator-card">
           <p className={`spectator-kicker spectator-kicker--${linkStatus}`}>{copy.kicker}</p>
           <p className="spectator-hint">Waiting for the scorer. Leave this tab open.</p>
-          <TryStallCount />
+          <TryStallParty />
         </div>
       </AppShell>
     );
@@ -162,13 +162,13 @@ export function SpectatorScreen({
           </div>
         )}
         <p className="spectator-hint">{copy.hint}</p>
-        <TryStallCount />
+        <TryStallParty />
       </div>
     </AppShell>
   );
 }
 
-function TryStallCount() {
+function TryStallParty() {
   return (
     <p className="spectator-promo">
       Scoring your own games? Try{' '}

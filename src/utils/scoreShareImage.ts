@@ -41,7 +41,7 @@ export function scoreOgFilename(
   team1Score: number,
   team2Score: number
 ): string {
-  return `stallcount-${slug(team1Name)}-${team1Score}-${team2Score}-${slug(team2Name)}.png`;
+  return `stallparty-${slug(team1Name)}-${team1Score}-${team2Score}-${slug(team2Name)}.png`;
 }
 
 function slug(value: string): string {

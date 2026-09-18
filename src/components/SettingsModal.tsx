@@ -221,7 +221,7 @@ export function SettingsModal({
 
   const handleExportScore = () => {
     const gameDate = new Date().toLocaleDateString();
-    downloadTextFile(`stallcount-${gameDate}-${team1Name}-vs-${team2Name}.txt`, reportText);
+    downloadTextFile(`stallparty-${gameDate}-${team1Name}-vs-${team2Name}.txt`, reportText);
   };
 
   const handleShareScore = () => {

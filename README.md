@@ -1,9 +1,9 @@
-# StallCount
+# StallParty
 
 A modern web-based score tracking application for Ultimate Frisbee games, featuring advanced line rotation management, gender ratio tracking, and real-time game statistics.
 
 - **Live app:** [stall.party](https://stall.party)
-- **Source:** [github.com/randyrektor/StallCount](https://github.com/randyrektor/StallCount)
+- **Source:** [github.com/randyrektor/StallParty](https://github.com/randyrektor/StallParty)
 
 ## Features
 

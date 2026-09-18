@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { COLORS, THEME } from '../constants';
+import { APP_NAME, COLORS, THEME } from '../constants';
 import { AppShell } from './AppShell';
 import {
   loadRecentTeams,
@@ -56,7 +56,7 @@ export function HomeScreen({ onStart, onResume, resumeLabel }: HomeScreenProps) 
   return (
     <AppShell showHeader={false} width="narrow" center>
       <div className="shell-card">
-          <h1 className="home-title" style={styles.title}>StallCount</h1>
+          <h1 className="home-title" style={styles.title}>{APP_NAME}</h1>
           <p style={styles.subtitle}>Ultimate frisbee scorekeeper</p>
           
           <div style={styles.inputSection}>
