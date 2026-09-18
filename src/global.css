@@ -42,6 +42,7 @@
   --accent-women: #ff3d9a;
   --accent-women-muted: rgba(255, 61, 154, 0.55);
   --accent-women-tint: rgba(255, 61, 154, 0.18);
+  --accent-purple: #9333ea;
   --success: #2ecc71;
   --success-tint: rgba(46, 204, 113, 0.15);
   --danger: #e74c3c;
@@ -63,6 +64,52 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+
+  /* Nested cards: inner radius = outer − padding − outer border */
+  --score-tile-radius: var(--radius-md);
+  --score-bar-pad: 8px;
+  --score-bar-border: 1px;
+  --score-bar-radius: calc(var(--score-tile-radius) + var(--score-bar-pad) + var(--score-bar-border));
+  --line-section-pad: 12px;
+  --line-section-border: 1px;
+  --player-seat-radius: 10px;
+  --line-section-radius: calc(var(--player-seat-radius) + var(--line-section-pad) + var(--line-section-border));
+  --spectator-pad-x: 20px;
+  --spectator-pad-top: 28px;
+  --spectator-pad-bottom: 32px;
+  --spectator-border: 1px;
+  --spectator-radius: calc(var(--score-bar-radius) + var(--spectator-pad-x) + var(--spectator-border));
+  --shell-card-pad-x: 28px;
+  --shell-card-pad-y: 36px;
+  --shell-card-border: 1px;
+  --shell-card-radius: calc(var(--radius-sm) + var(--shell-card-pad-x) + var(--shell-card-border));
+  --line-setup-pad-x: 16px;
+  --line-setup-pad-y: 14px;
+  --line-setup-border: 1px;
+  --line-setup-radius: calc(var(--radius-sm) + var(--line-setup-pad-x) + var(--line-setup-border));
+  --pill-track-pad: 3px;
+  --pill-radius: 7px;
+  --pill-track-radius: calc(var(--pill-radius) + var(--pill-track-pad));
+  --roster-band-pad-x: 12px;
+  --roster-band-pad-top: 10px;
+  --roster-band-pad-bottom: 12px;
+  --roster-band-radius: calc(var(--player-seat-radius) + var(--roster-band-pad-x));
+  --roster-board-pad-x: 16px;
+  --roster-board-border: 1px;
+  --roster-board-radius: calc(var(--player-seat-radius) + var(--roster-board-pad-x) + var(--roster-board-border));
+  --roster-board-line-radius: calc(var(--roster-band-radius) + var(--roster-board-pad-x) + var(--roster-board-border));
+  --confirm-modal-pad: 20px;
+  --confirm-modal-border: 1px;
+  --confirm-modal-radius: calc(var(--radius-sm) + var(--confirm-modal-pad) + var(--confirm-modal-border));
+  --sub-modal-pad: 18px;
+  --sub-modal-inner-radius: 6px;
+  --sub-modal-radius: calc(var(--sub-modal-inner-radius) + var(--sub-modal-pad) + 1px);
+  --settings-control-radius: 10px;
+  --settings-card-pad-x: 16px;
+  --settings-card-radius: calc(var(--settings-control-radius) + var(--settings-card-pad-x) + 1px);
+  --import-panel-pad: 12px;
+  --import-panel-radius: calc(var(--radius-sm) + var(--import-panel-pad) + 1px);
+  --line-info-pad-x: 12px;
 }
 
 [data-theme='light'] {
@@ -102,6 +149,7 @@
   --accent-women: #c4006a;
   --accent-women-muted: rgba(196, 0, 106, 0.7);
   --accent-women-tint: rgba(196, 0, 106, 0.14);
+  --accent-purple: #7c3aed;
   --success: #0f8a38;
   --success-tint: rgba(15, 138, 56, 0.15);
   --danger: #c40d1c;
@@ -150,77 +198,9 @@ html, body {
   overflow: hidden;
 }
 
-/* Blob background (decorative, dark mode only — overpowers sunlight readability) */
-.blob {
-  position: fixed;
-  top: -50vh;
-  left: 0;
-  width: 100%;
-  height: 200vh;
-  z-index: 0;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  isolation: isolate;
-}
-
-.blob::before,
-.blob::after {
-  content: '';
-  position: absolute;
-  width: 150vmax;
-  height: 150vmax;
-  border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.6;
-  animation: blob-animation 20s infinite alternate;
-}
-
-.blob::before {
-  background: var(--accent-open);
-  top: -25%;
-  left: -25%;
-  animation-delay: -5s;
-}
-
-.blob::after {
-  background: var(--accent-women);
-  bottom: -25%;
-  right: -25%;
-  animation-delay: -10s;
-}
-
-.blob > div {
-  content: '';
-  position: absolute;
-  width: 150vmax;
-  height: 150vmax;
-  border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.5;
-  animation: blob-animation 20s infinite alternate;
-  background: #9b4dca;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation-delay: -15s;
-}
-
-/* Light theme: hide decorative blobs so sun-glare doesn't fight the gradients. */
-[data-theme='light'] .blob,
-[data-theme='light'] [data-blobs] {
-  display: none !important;
-}
-
 #root > * {
   position: relative;
   z-index: 1;
-}
-
-@keyframes blob-animation {
-  0%   { transform: translate(0, 0) scale(1); }
-  33%  { transform: translate(30px, -50px) scale(1.1); }
-  66%  { transform: translate(-20px, 20px) scale(0.9); }
-  100% { transform: translate(10px, 30px) scale(1.05); }
 }
 
 *, *::before, *::after {
@@ -232,20 +212,6 @@ html, body {
   height: 100%;
   min-height: 100dvh;
   min-height: -webkit-fill-available;
-}
-
-@media (max-width: 768px) {
-  .blob {
-    top: -100vh;
-    height: 300vh;
-  }
-
-  .blob::before,
-  .blob::after,
-  .blob > div {
-    width: 200vmax;
-    height: 200vmax;
-  }
 }
 
 .flex-container { min-width: 0; max-width: 100%; }
@@ -300,6 +266,11 @@ input:focus {
 
 /* Shared shell */
 .app-shell {
+  --blob-open: color-mix(in srgb, var(--accent-open) 22%, transparent);
+  --blob-women: color-mix(in srgb, var(--accent-women) 22%, transparent);
+  --blob-purple: color-mix(in srgb, var(--accent-purple) 22%, transparent);
+  --blob-noise: url("/noise.png");
+  --blob-grain-opacity: 0.08;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -307,31 +278,40 @@ input:focus {
   min-height: -webkit-fill-available;
   max-width: 100%;
   overflow: hidden;
-  background: var(--bg-app);
+  position: relative;
+  isolation: isolate;
+  background-color: var(--bg-app);
+  background-image:
+    radial-gradient(ellipse 560px 360px at 10% 8%, var(--blob-open), transparent 70%),
+    radial-gradient(ellipse 280px 420px at 24% 24%, var(--blob-open), transparent 72%),
+    radial-gradient(ellipse 420px 560px at 90% 20%, var(--blob-women), transparent 70%),
+    radial-gradient(ellipse 380px 260px at 76% 40%, var(--blob-women), transparent 72%),
+    radial-gradient(ellipse 540px 340px at 56% 80%, var(--blob-purple), transparent 70%),
+    radial-gradient(ellipse 300px 460px at 70% 62%, var(--blob-purple), transparent 72%);
+  background-repeat: no-repeat;
 }
 
-.gradient-blobs {
-  position: fixed;
+.app-shell::before {
+  content: '';
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  overflow: hidden;
+  opacity: var(--blob-grain-opacity);
+  mix-blend-mode: overlay;
+  background-image: var(--blob-noise);
+  background-size: 140px 140px;
 }
 
-.gradient-blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  width: 300px;
-  height: 300px;
+[data-theme='light'] .app-shell {
+  --blob-open: color-mix(in srgb, var(--accent-open) 28%, transparent);
+  --blob-women: color-mix(in srgb, var(--accent-women) 28%, transparent);
+  --blob-purple: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+  --blob-grain-opacity: 0.1;
 }
 
-.gradient-blob-1 { background: rgba(61, 143, 255, 0.15); top: 5%; left: 5%; }
-.gradient-blob-2 { background: rgba(255, 61, 154, 0.15); top: 20%; right: 15%; }
-.gradient-blob-3 { background: rgba(147, 51, 234, 0.15); top: 55%; right: 40%; }
-
-[data-theme='light'] .gradient-blobs {
-  display: none;
+[data-theme='light'] .app-shell::before {
+  mix-blend-mode: multiply;
 }
 
 .app-shell-header {
@@ -419,11 +399,11 @@ input:focus {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 14px 16px;
+  padding: var(--line-setup-pad-y) var(--line-setup-pad-x);
   margin-bottom: 4px;
   background: var(--bg-panel);
-  border: 1px solid var(--border-faint);
-  border-radius: 16px;
+  border: var(--line-setup-border) solid var(--border-faint);
+  border-radius: var(--line-setup-radius);
 }
 
 .line-setup-grid {
@@ -472,8 +452,8 @@ input:focus {
   gap: 2px;
   width: fit-content;
   min-height: 36px;
-  padding: 3px;
-  border-radius: 10px;
+  padding: var(--pill-track-pad);
+  border-radius: var(--pill-track-radius);
   background: var(--bg-subtle);
 }
 
@@ -490,7 +470,7 @@ input:focus {
   height: 30px;
   padding: 0 11px;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--pill-radius);
   background: transparent;
   color: var(--text-secondary);
   font-weight: 600;
@@ -620,8 +600,8 @@ input:focus {
   align-items: center;
   gap: 12px;
   margin: 0 0 16px;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 10px var(--line-info-pad-x);
+  border-radius: var(--score-bar-radius);
   background: var(--bg-panel);
   border: 1px solid var(--border-soft);
   box-shadow: var(--shadow-card);
@@ -684,6 +664,7 @@ input:focus {
 .roster-sheet--line .roster-board {
   background: var(--bg-panel);
   border-color: var(--border-softer);
+  border-radius: var(--roster-board-line-radius);
 }
 
 .roster-sheet--line .player-seat:not(.player-seat-add):not(.player-seat--empty) {
@@ -703,7 +684,7 @@ input:focus {
   position: relative;
   isolation: isolate;
   z-index: 0;
-  padding: 10px 12px 12px;
+  padding: var(--roster-band-pad-top) var(--roster-band-pad-x) var(--roster-band-pad-bottom);
   box-sizing: border-box;
 }
 
@@ -712,7 +693,7 @@ input:focus {
   position: absolute;
   inset: 0;
   background: var(--bg-elevated);
-  border-radius: 12px;
+  border-radius: var(--roster-band-radius);
   z-index: -1;
   pointer-events: none;
 }
@@ -754,7 +735,7 @@ input:focus {
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
   background: var(--bg-subtle);
-  border-radius: 6px;
+  border-radius: var(--player-seat-radius);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   user-select: none;
 }
@@ -775,9 +756,9 @@ input:focus {
   display: flex;
   gap: 16px;
   background: var(--bg-panel);
-  border-radius: 12px;
-  padding: 12px 16px 20px;
-  border: 1px solid var(--border);
+  border-radius: var(--roster-board-radius);
+  padding: 12px var(--roster-board-pad-x) 20px;
+  border: var(--roster-board-border) solid var(--border);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -813,11 +794,11 @@ input:focus {
 
 .confirm-modal {
   background: var(--bg-elevated);
-  border-radius: 16px;
-  padding: 20px;
+  border-radius: var(--confirm-modal-radius);
+  padding: var(--confirm-modal-pad);
   max-width: 400px;
   width: 100%;
-  border: 1px solid var(--border);
+  border: var(--confirm-modal-border) solid var(--border);
   box-shadow: var(--shadow-modal);
 }
 
@@ -863,9 +844,9 @@ input:focus {
 .shell-card {
   width: 100%;
   background: var(--bg-panel-strong);
-  border-radius: var(--radius-lg);
-  padding: 36px 28px;
-  border: 1px solid var(--border-strong);
+  border-radius: var(--shell-card-radius);
+  padding: var(--shell-card-pad-y) var(--shell-card-pad-x);
+  border: var(--shell-card-border) solid var(--border-strong);
   box-shadow: var(--shadow-modal);
   backdrop-filter: blur(10px);
 }
@@ -999,7 +980,7 @@ input:focus {
   min-width: 0;
   padding: 8px 12px;
   border: 2px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--player-seat-radius);
   color: var(--text-on-accent);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1263,7 +1244,7 @@ input:focus {
   flex: 0 0 44px;
   width: 44px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--player-seat-radius);
   background: var(--bg-subtle);
   color: var(--text-secondary);
   border: 1px solid var(--border-soft);
@@ -1314,8 +1295,8 @@ input:focus {
 .roster-import-panel {
   background: var(--bg-subtle);
   border: 1px solid var(--border-softer);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: var(--import-panel-radius);
+  padding: var(--import-panel-pad);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1349,9 +1330,9 @@ input:focus {
 
 .spectator-card {
   background: var(--bg-elevated);
-  border: 1px solid var(--border-soft);
-  border-radius: 16px;
-  padding: 28px 20px 32px;
+  border: var(--spectator-border) solid var(--border-soft);
+  border-radius: var(--spectator-radius);
+  padding: var(--spectator-pad-top) var(--spectator-pad-x) var(--spectator-pad-bottom);
   width: 100%;
   max-width: 640px;
   margin: 16px auto;
@@ -1426,7 +1407,7 @@ input:focus {
   justify-content: center;
   gap: 4px;
   padding: 12px 8px;
-  border-radius: 12px;
+  border-radius: var(--score-bar-radius);
   font-weight: 700;
   text-align: center;
 }
@@ -1495,11 +1476,11 @@ input:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px;
+  padding: var(--score-bar-pad);
   background: var(--bg-panel);
-  border-radius: 12px;
+  border-radius: var(--score-bar-radius);
   margin-bottom: 16px;
-  border: 1px solid var(--border-soft);
+  border: var(--score-bar-border) solid var(--border-soft);
   box-shadow: var(--shadow-card);
 }
 
@@ -1522,7 +1503,7 @@ input:focus {
   text-align: center;
   flex: 1;
   min-width: 0;
-  border-radius: 12px;
+  border-radius: var(--score-tile-radius);
   color: inherit;
   padding: 12px 16px;
   cursor: pointer;
@@ -1538,7 +1519,7 @@ input:focus {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 12px;
+  border-radius: inherit;
   pointer-events: none;
   background-color: rgba(46, 204, 113, 0.4);
   border: 2px solid rgba(46, 204, 113, 0.9);
@@ -1586,9 +1567,9 @@ input:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
+  padding: 10px var(--line-info-pad-x);
   background: var(--bg-panel);
-  border-radius: 12px;
+  border-radius: var(--score-bar-radius);
   margin-bottom: 16px;
   border: 1px solid var(--border-soft);
   box-shadow: var(--shadow-card);
@@ -1647,7 +1628,7 @@ input:focus {
 
 .pattern-item {
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: calc(var(--score-bar-radius) - var(--line-info-pad-x) - 1px);
   background: var(--pattern-pill-bg);
 }
 
@@ -1674,11 +1655,11 @@ input:focus {
   flex: 1 1 0%;
   min-width: 0;
   background: var(--bg-panel);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: var(--line-section-radius);
+  padding: var(--line-section-pad);
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-soft);
+  border: var(--line-section-border) solid var(--border-soft);
   box-shadow: var(--shadow-card);
 }
 
@@ -1738,6 +1719,10 @@ input:focus {
   flex-wrap: wrap;
 }
 
+.settings-card {
+  border-radius: var(--settings-card-radius);
+}
+
 .home-title {
   font-size: clamp(26px, 7vw, 32px);
 }
@@ -1777,7 +1762,8 @@ input:focus {
   }
 
   .shell-card {
-    padding: 24px 18px;
+    --shell-card-pad-x: 18px;
+    --shell-card-pad-y: 24px;
   }
 
   .btn {
@@ -1793,7 +1779,8 @@ input:focus {
   }
 
   .line-setup {
-    padding: 12px;
+    --line-setup-pad-x: 12px;
+    --line-setup-pad-y: 12px;
   }
 
   .line-setup-grid {
@@ -1817,7 +1804,8 @@ input:focus {
   .roster-board {
     flex-direction: column;
     gap: 16px;
-    padding: 12px 10px 16px;
+    --roster-board-pad-x: 10px;
+    padding: 12px var(--roster-board-pad-x) 16px;
   }
 
   .roster-column-title {
@@ -1848,7 +1836,7 @@ input:focus {
   }
 
   .score-top-bar {
-    padding: 6px;
+    --score-bar-pad: 6px;
     margin-bottom: 12px;
   }
 
@@ -1889,7 +1877,8 @@ input:focus {
   }
 
   .line-info {
-    padding: 8px 10px;
+    --line-info-pad-x: 10px;
+    padding: 8px var(--line-info-pad-x);
     margin-bottom: 12px;
   }
 
@@ -1906,7 +1895,7 @@ input:focus {
   }
 
   .line-section {
-    padding: 8px;
+    --line-section-pad: 8px;
   }
 
   .line-title {

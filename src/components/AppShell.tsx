@@ -1,15 +1,5 @@
 import React from 'react';
 
-function GradientBlobs() {
-  return (
-    <div className="gradient-blobs" data-blobs>
-      <div className="gradient-blob gradient-blob-1" />
-      <div className="gradient-blob gradient-blob-2" />
-      <div className="gradient-blob gradient-blob-3" />
-    </div>
-  );
-}
-
 interface AppShellProps {
   title?: React.ReactNode;
   left?: React.ReactNode;
@@ -33,7 +23,6 @@ export function AppShell({
   const headerInner = 'app-shell-inner app-shell-inner--wide';
   return (
     <div className={`app-shell${showHeader ? '' : ' app-shell--no-header'}`}>
-      <GradientBlobs />
       {showHeader && (
         <header className="app-shell-header">
           <div className={headerInner}>

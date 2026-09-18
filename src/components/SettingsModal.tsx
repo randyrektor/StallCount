@@ -8,8 +8,8 @@ import { APP_NAME, COPYRIGHT_HOLDER, GITHUB_URL, KOFI_URL, THEME } from '../cons
 import {
   buildScoreReport,
   downloadTextFile,
-  scoreShareTitle,
 } from '../utils/scoreReport';
+import { shareScoreOgImage } from '../utils/scoreShareImage';
 import { qrImageUrl } from '../utils/spectatorState';
 import { type SoftPointCap } from '../utils/softCap';
 import { type GameClockTime } from '../utils/gameClock';
@@ -67,7 +67,6 @@ interface SettingsModalProps {
   onThemeChange: (theme: Theme) => void;
   onReset: () => void;
   onChangeTeam?: () => void;
-  onPreviewScoreReader?: () => void;
   spectatorLink?: string;
   // Export functionality props
   team1Score: number;
@@ -106,7 +105,6 @@ export function SettingsModal({
   onThemeChange,
   onReset,
   onChangeTeam,
-  onPreviewScoreReader,
   spectatorLink = '',
   team1Score,
   team2Score,
@@ -129,7 +127,6 @@ export function SettingsModal({
   const [localHalfAt, setLocalHalfAt] = useState<GameClockTime>(halfAt);
   const [localEndAt, setLocalEndAt] = useState<GameClockTime>(endAt);
   const [localTheme, setLocalTheme] = useState<Theme>(theme);
-  const [shareStatus, setShareStatus] = useState('');
 
   useEffect(() => {
     if (!visible) return;
@@ -221,40 +218,28 @@ export function SettingsModal({
     currentLine,
     scoreHistory,
   });
-  const shareTitle = scoreShareTitle(team1Name, team2Name, team1Score, team2Score);
 
   const handleExportScore = () => {
     const gameDate = new Date().toLocaleDateString();
     downloadTextFile(`stallcount-${gameDate}-${team1Name}-vs-${team2Name}.txt`, reportText);
   };
 
-  const handleCopyScore = async () => {
-    try {
-      await navigator.clipboard.writeText(reportText);
-      setShareStatus('Copied score report');
-    } catch {
-      setShareStatus('Copy failed — try Share or Download');
-    }
+  const handleShareScore = () => {
+    void shareScoreOgImage({
+      team1Name,
+      team2Name,
+      team1Score,
+      team2Score,
+    });
   };
 
-  const handleNativeShare = async () => {
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ title: shareTitle, text: reportText });
-        return;
-      } catch {
-        // user cancelled or share failed — fall through to copy
-      }
-    }
-    await handleCopyScore();
-  };
-
-  const handleCopySpectatorLink = async () => {
-    try {
-      await navigator.clipboard.writeText(spectatorLink);
-    } catch {
-      // Clipboard may be blocked; keep Copy link silent.
-    }
+  const handleShareSpectatorLink = () => {
+    if (!spectatorLink || typeof navigator.share !== 'function') return;
+    void navigator.share({
+      title: `${team1Name} vs ${team2Name}`,
+      text: `Watch live on ${APP_NAME}`,
+      url: spectatorLink,
+    });
   };
 
   if (!visible) return null;
@@ -306,7 +291,7 @@ export function SettingsModal({
         </div>
 
         <div style={styles.content}>
-          <div style={styles.card}>
+          <div className="settings-card" style={styles.card}>
             <div style={styles.cardHeader}>
               <h3 style={styles.cardTitle}>Teams</h3>
             </div>
@@ -336,7 +321,7 @@ export function SettingsModal({
             </div>
           </div>
 
-          <div style={styles.card}>
+          <div className="settings-card" style={styles.card}>
             <div style={styles.cardHeader}>
               <h3 style={styles.cardTitle}>Line</h3>
             </div>
@@ -428,7 +413,7 @@ export function SettingsModal({
             </div>
           </div>
 
-          <div style={styles.card}>
+          <div className="settings-card" style={styles.card}>
             <div style={styles.cardHeader}>
               <h3 style={styles.cardTitle}>Game</h3>
             </div>
@@ -461,27 +446,38 @@ export function SettingsModal({
                   ariaLabel="Game end reminder"
                 />
               </div>
-              <div style={styles.compactActions}>
-                <button type="button" style={styles.compactAction} onClick={handleNativeShare}>
-                  Share
-                </button>
-                <button type="button" style={styles.compactAction} onClick={handleExportScore}>
-                  Download
-                </button>
+              <div style={styles.matchAdmin}>
                 {onChangeTeam && (
                   <button type="button" style={styles.compactAction} onClick={handleChangeTeam}>
                     Change team
                   </button>
                 )}
                 <button type="button" style={styles.compactActionDanger} onClick={handleReset}>
-                  Reset
+                  Reset game
                 </button>
               </div>
-              {shareStatus ? <p style={styles.shareStatus}>{shareStatus}</p> : null}
             </div>
           </div>
 
-          <div style={styles.card}>
+          <div className="settings-card" style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h3 style={styles.cardTitle}>Share</h3>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={styles.exportActions}>
+                <button type="button" style={styles.exportAction} onClick={handleShareScore}>
+                  <span style={styles.exportActionTitle}>Share score</span>
+                  <span style={styles.exportActionHint}>PNG of the current board</span>
+                </button>
+                <button type="button" style={styles.exportAction} onClick={handleExportScore}>
+                  <span style={styles.exportActionTitle}>Download stats</span>
+                  <span style={styles.exportActionHint}>Point log, roster, and rotation (.txt)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-card" style={styles.card}>
             <div style={styles.cardHeader}>
               <h3 style={styles.cardTitle}>Spectators</h3>
             </div>
@@ -498,29 +494,13 @@ export function SettingsModal({
                   style={styles.qrImage}
                 />
               )}
-              <div style={styles.compactActions}>
-                {onPreviewScoreReader && (
-                  <button
-                    type="button"
-                    style={styles.compactAction}
-                    onClick={onPreviewScoreReader}
-                  >
-                    Preview reader
-                  </button>
-                )}
-                <button type="button" style={styles.compactAction} onClick={handleCopySpectatorLink}>
-                  Copy link
-                </button>
-                {typeof navigator.share === 'function' && (
-                  <button
-                    type="button"
-                    style={styles.compactAction}
-                    onClick={() => navigator.share({ title: shareTitle, url: spectatorLink, text: shareTitle })}
-                  >
+              {typeof navigator.share === 'function' && spectatorLink && (
+                <div style={styles.compactActions}>
+                  <button type="button" style={styles.compactAction} onClick={handleShareSpectatorLink}>
                     Share link
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -655,7 +635,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   card: {
     backgroundColor: THEME.bgSubtle3,
-    borderRadius: '12px',
+    borderRadius: 'var(--settings-card-radius)',
     marginBottom: '12px',
     border: `1px solid ${THEME.borderFaint}`,
     overflow: 'hidden',
@@ -697,7 +677,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px 16px',
     backgroundColor: COLORS.inputBg,
     border: `1.5px solid ${COLORS.inputBorder}`,
-    borderRadius: '10px',
+    borderRadius: 'var(--settings-control-radius)',
     color: COLORS.text,
     fontSize: '15px',
     boxSizing: 'border-box',
@@ -714,7 +694,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px 10px',
     backgroundColor: THEME.bgSubtle3,
     border: `1.5px solid ${THEME.borderSofter}`,
-    borderRadius: '10px',
+    borderRadius: 'var(--settings-control-radius)',
     cursor: 'pointer',
     color: COLORS.text,
     fontSize: '15px',
@@ -785,7 +765,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px 12px',
     backgroundColor: THEME.bgSubtle3,
     border: `1.5px solid ${THEME.borderSofter}`,
-    borderRadius: '10px',
+    borderRadius: 'var(--settings-control-radius)',
     cursor: 'pointer',
     color: COLORS.text,
     fontSize: '18px',
@@ -808,7 +788,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '14px 12px',
     backgroundColor: THEME.bgSubtle3,
     border: `1.5px solid ${THEME.borderSofter}`,
-    borderRadius: '10px',
+    borderRadius: 'var(--settings-control-radius)',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     outline: 'none',
@@ -831,12 +811,53 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '8px',
     flexWrap: 'wrap',
   },
+  matchAdmin: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap',
+    marginTop: '16px',
+    paddingTop: '14px',
+    borderTop: `1px solid ${THEME.borderFaint}`,
+  },
+  exportActions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  exportAction: {
+    appearance: 'none',
+    width: '100%',
+    padding: '12px 14px',
+    backgroundColor: THEME.bgSubtle3,
+    border: `1.5px solid ${THEME.borderSofter}`,
+    borderRadius: 'var(--settings-control-radius)',
+    cursor: 'pointer',
+    color: COLORS.text,
+    textAlign: 'left',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '2px',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  },
+  exportActionTitle: {
+    fontSize: '15px',
+    fontWeight: 600,
+    color: COLORS.text,
+  },
+  exportActionHint: {
+    fontSize: '12px',
+    fontWeight: 500,
+    color: COLORS.textSecondary,
+    lineHeight: 1.35,
+  },
   compactAction: {
     flex: '1 1 auto',
     padding: '12px 14px',
     backgroundColor: THEME.bgSubtle3,
     border: `1.5px solid ${THEME.borderSofter}`,
-    borderRadius: '10px',
+    borderRadius: 'var(--settings-control-radius)',
     cursor: 'pointer',
     color: COLORS.text,
     fontSize: '14px',
@@ -859,17 +880,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     padding: '8px',
   },
-  shareStatus: {
-    margin: '10px 0 0',
-    fontSize: '13px',
-    color: COLORS.textSecondary,
-  },
   compactActionDanger: {
     flex: '1 1 auto',
     padding: '12px 14px',
     backgroundColor: THEME.dangerTint,
     border: `1.5px solid ${THEME.dangerBorder}`,
-    borderRadius: '10px',
+    borderRadius: 'var(--settings-control-radius)',
     cursor: 'pointer',
     color: COLORS.danger,
     fontSize: '14px',
@@ -910,7 +926,7 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: THEME.bgSubtle2,
     color: COLORS.text,
     border: 'none',
-    borderRadius: '10px',
+    borderRadius: 'var(--settings-control-radius)',
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',
@@ -921,7 +937,7 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: COLORS.button,
     color: THEME.textOnAccent,
     border: 'none',
-    borderRadius: '10px',
+    borderRadius: 'var(--settings-control-radius)',
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',

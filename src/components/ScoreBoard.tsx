@@ -40,13 +40,6 @@ function replayScoreFlash(el: HTMLElement | null) {
   el.classList.add('score-tile--flash');
 }
 
-// Decorative blob tints (only render in dark mode; CSS hides them in light mode)
-const BLOB_COLORS = {
-  blue: 'rgba(74, 144, 226, 0.15)',
-  pink: 'rgba(232, 62, 140, 0.15)',
-  purple: 'rgba(147, 51, 234, 0.15)',
-};
-
 interface ScoreBoardProps {
   team1Name: string;
   team2Name: string;
@@ -458,25 +451,6 @@ const styles: Record<string, React.CSSProperties> = {
     borderColor: THEME.dangerBorder,
     backgroundColor: THEME.dangerTint,
   },
-  blobsContainer: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    width: '100vw',
-    height: '100vh',
-    pointerEvents: 'none',
-    zIndex: 0,
-    overflow: 'hidden',
-  },
-  blob: {
-    position: 'absolute',
-    borderRadius: '50%',
-    filter: 'blur(80px)',
-  },
-  blob1: { width: '300px', height: '300px', background: BLOB_COLORS.blue, top: '5%', left: '5%' },
-  blob2: { width: '300px', height: '300px', background: BLOB_COLORS.pink, top: '20%', right: '15%' },
-  blob3: { width: '300px', height: '300px', background: BLOB_COLORS.purple, top: '55%', right: '40%' },
-  
   topBar: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -650,8 +624,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subModal: {
     backgroundColor: COLORS.card,
-    borderRadius: '12px',
-    padding: '18px',
+    borderRadius: 'var(--sub-modal-radius)',
+    padding: 'var(--sub-modal-pad)',
     maxWidth: '360px',
     width: '100%',
     border: `1px solid ${COLORS.border}`,
@@ -684,7 +658,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subCandidateButton: {
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: 'var(--sub-modal-inner-radius)',
     padding: '12px 14px',
     color: THEME.textOnAccent,
     fontSize: '15px',
@@ -696,7 +670,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '14px',
     width: '100%',
     padding: '10px',
-    borderRadius: '6px',
+    borderRadius: 'var(--sub-modal-inner-radius)',
     border: `1px solid ${COLORS.border}`,
     backgroundColor: 'transparent',
     color: COLORS.textSecondary,

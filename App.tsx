@@ -134,7 +134,6 @@ export default function App() {
   );
   const [watchRoomId, setWatchRoomId] = useState<string | null>(null);
   const [watchWriteKey, setWatchWriteKey] = useState<string | null>(null);
-  const [previewSpectator, setPreviewSpectator] = useState(false);
 
   const ensureWatchRoom = useCallback(() => {
     setWatchRoomId((id) => id ?? mintRoomId());
@@ -744,16 +743,6 @@ export default function App() {
     );
   }
 
-  if (previewSpectator) {
-    return (
-      <SpectatorScreen
-        snapshot={liveSpectatorSnapshot}
-        linkStatus="preview"
-        onLeave={() => setPreviewSpectator(false)}
-      />
-    );
-  }
-
   if (showHomeScreen) {
     return <HomeScreen onStart={handleStartGame} onResume={resumeLabel ? handleResumeGame : undefined} resumeLabel={resumeLabel} />;
   }
@@ -865,10 +854,6 @@ export default function App() {
         onThemeChange={setTheme}
         onReset={handleReset}
         onChangeTeam={handleChangeTeam}
-        onPreviewScoreReader={() => {
-          setSettingsVisible(false);
-          setPreviewSpectator(true);
-        }}
         spectatorLink={watchRoomId ? watchRoomUrlFromLocation(watchRoomId) : ''}
         team1Score={team1Score}
         team2Score={team2Score}
