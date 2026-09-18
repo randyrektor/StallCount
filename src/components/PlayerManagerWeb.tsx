@@ -236,6 +236,27 @@ function SortablePlayer({
         gender={player.gender}
         name={player.name}
         pending={isPending}
+        statusSlot={
+          isPending ? (
+            onForcePending ? (
+              <button
+                type="button"
+                className="player-seat-add-now"
+                aria-label={`Add ${player.name} to the rotation`}
+                onPointerDown={stopSeatDrag}
+                onMouseDown={stopSeatDrag}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onForcePending(player);
+                }}
+              >
+                Add now
+              </button>
+            ) : (
+              <span className="player-seat-pending">Pending</span>
+            )
+          ) : undefined
+        }
         jerseySlot={
           <JerseyInput
             value={jerseyText}
@@ -265,20 +286,6 @@ function SortablePlayer({
         {...attributes}
         {...listeners}
       >
-        {isPending && <span className="player-seat-pending">Pending</span>}
-        {isPending && onForcePending && isEditMode && (
-          <button
-            type="button"
-            style={styles.forcePendingButton}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onForcePending(player);
-            }}
-          >
-            Add now
-          </button>
-        )}
         <button
           style={{
             ...styles.deleteButton,
@@ -853,7 +860,7 @@ export function PlayerManagerWeb({
               <strong style={{ color: COLORS.text }}>Pending</strong>
               <span style={{ color: COLORS.textSecondary, fontSize: 12 }}>
                 {' '}
-                — they wait only if joining now would change the line already on the field. They can go onto next line immediately.
+                — they get the next number at the end of the list. If that number is already on this point, they wait; otherwise they join and you can drag them.
               </span>
             </div>
           )}
@@ -1356,20 +1363,5 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: THEME.bgPanel,
     border: `1px solid ${COLORS.border}`,
     lineHeight: 1.4,
-  },
-  forcePendingButton: {
-    position: 'absolute',
-    right: '36px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    padding: '4px 8px',
-    fontSize: '10px',
-    fontWeight: 700,
-    border: 'none',
-    borderRadius: '4px',
-    backgroundColor: COLORS.add,
-    color: THEME.textOnAccent,
-    cursor: 'pointer',
-    zIndex: 2,
   },
 }; 

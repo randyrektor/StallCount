@@ -106,10 +106,24 @@ export function scheduleSaveGameSession(session: GameSession, delayMs = 250): vo
 }
 
 export function clearGameSession(): void {
+  pendingSession = null;
+  if (saveTimer != null) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.removeItem(GAME_SESSION_KEY);
   } catch {
     // ignore
   }
+}
+
+export function clearGameSessionForTeam(teamName: string): boolean {
+  const key = teamName.trim();
+  if (!key) return false;
+  const session = loadGameSession();
+  if (!session || session.team1Name.trim() !== key) return false;
+  clearGameSession();
+  return true;
 }

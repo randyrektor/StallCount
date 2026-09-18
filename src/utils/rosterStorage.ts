@@ -1,7 +1,7 @@
 import type { Player } from '../types';
 import { isPlayerPosition } from '../types';
 
-const STORAGE_KEY = 'ultimate-rosters';
+export const ROSTER_STORAGE_KEY = 'ultimate-rosters';
 
 type RosterMap = Record<string, Player[]>;
 
@@ -37,16 +37,28 @@ function normalizeTeamKey(teamName: string): string {
   return teamName.trim();
 }
 
+function readRosterMap(): RosterMap {
+  const raw = localStorage.getItem(ROSTER_STORAGE_KEY);
+  if (!raw) return {};
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  return { ...(parsed as RosterMap) };
+}
+
+function writeRosterMap(map: RosterMap): void {
+  if (Object.keys(map).length === 0) {
+    localStorage.removeItem(ROSTER_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(ROSTER_STORAGE_KEY, JSON.stringify(map));
+}
+
 export function loadRosterForTeam(teamName: string): Player[] | null {
   if (typeof localStorage === 'undefined') return null;
   const key = normalizeTeamKey(teamName);
   if (!key) return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const map = JSON.parse(raw) as unknown;
-    if (!map || typeof map !== 'object') return null;
-    const players = (map as RosterMap)[key];
+    const players = readRosterMap()[key];
     if (!Array.isArray(players)) return null;
     const valid = players.map(normalizePlayer).filter((p): p is Player => p != null);
     return valid.length > 0 ? valid : null;
@@ -60,17 +72,24 @@ export function saveRosterForTeam(teamName: string, roster: Player[]): void {
   const key = normalizeTeamKey(teamName);
   if (!key) return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    let map: RosterMap = {};
-    if (raw) {
-      const parsed = JSON.parse(raw) as unknown;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        map = { ...(parsed as RosterMap) };
-      }
-    }
+    const map = readRosterMap();
     map[key] = roster;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    writeRosterMap(map);
   } catch (e) {
     console.error('Failed to save roster:', e);
+  }
+}
+
+export function deleteRosterForTeam(teamName: string): void {
+  if (typeof localStorage === 'undefined') return;
+  const key = normalizeTeamKey(teamName);
+  if (!key) return;
+  try {
+    const map = readRosterMap();
+    if (!(key in map)) return;
+    delete map[key];
+    writeRosterMap(map);
+  } catch {
+    // ignore
   }
 }

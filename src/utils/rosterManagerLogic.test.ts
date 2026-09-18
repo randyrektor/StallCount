@@ -7,7 +7,6 @@ import {
   partitionPendingForLineChange,
   applyPendingActivationsToQueues,
   restoreActivatedPendingAfterUndo,
-  insertPlayerPreservingCurrentLine,
 } from './rosterManagerLogic';
 import {
   applySubstitutionToQueue,
@@ -195,21 +194,14 @@ describe('applyDragReorderToMasterQueues', () => {
 });
 
 describe('applyPendingActivationsToQueues', () => {
-  it('places at the first slot after current window; current line stays put', () => {
+  it('appends at end and keeps the same current line when the new player is off the field', () => {
     const opens = [o('A'), o('B'), o('C'), o('D')];
     const women = [w('M'), w('N'), w('P')];
     const pattern = getGenderPattern(0, 7, 4, 'ABBA');
     const oi = 0;
     const wi = 0;
     const before = getLine(opens, women, pattern, oi, wi);
-    const applied = applyPendingActivationsToQueues(
-      opens,
-      women,
-      [o('New')],
-      oi,
-      wi,
-      pattern
-    );
+    const applied = applyPendingActivationsToQueues(opens, women, [o('New')], oi, wi);
     const after = getLine(
       applied.masterOpenQueue,
       applied.masterWomenQueue,
@@ -242,12 +234,10 @@ describe('partitionPendingForLineChange', () => {
     expect(stillPending.map((p) => p.name)).toEqual(['Bench']);
   });
 
-  it('when naive append would land on current line, still insert without changing current', () => {
+  it('when the next number would be on the current line, stay pending (do not splice into the list)', () => {
     const opens = [o('A'), o('B'), o('C'), o('D')];
     const women = [w('M'), w('N'), w('P')];
     const pending = [o('Extra')];
-    const pattern = getGenderPattern(0, 7, 4, 'ABBA');
-    const before = getLine(opens, women, pattern, 1, 0);
     const placed = partitionPendingForLineChange({
       pendingPlayers: pending,
       masterOpenQueue: opens,
@@ -259,16 +249,36 @@ describe('partitionPendingForLineChange', () => {
       splitCycle: 'ABBA',
       lineupSize: 7,
     });
-    expect(placed.activate.map((p) => p.name)).toEqual(['Extra']);
+    expect(placed.activate).toEqual([]);
+    expect(placed.stillPending.map((p) => p.name)).toEqual(['Extra']);
+    expect(placed.masterOpenQueue.map((p) => p.name)).toEqual(['A', 'B', 'C', 'D']);
+  });
+
+  it('8 men + late arrival at index 0: new player is 9 at the end, not pending', () => {
+    const opens = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(o);
+    const placed = partitionPendingForLineChange({
+      pendingPlayers: [o('Late')],
+      masterOpenQueue: opens,
+      masterWomenQueue: [],
+      openIndex: 0,
+      womenIndex: 0,
+      lineIndex: 0,
+      startingOpen: 7,
+      splitCycle: 'same',
+      lineupSize: 7,
+    });
     expect(placed.stillPending).toEqual([]);
+    expect(placed.masterOpenQueue.map((p) => p.name)).toEqual([
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'Late',
+    ]);
     const after = getLine(
       placed.masterOpenQueue,
       placed.masterWomenQueue,
-      pattern,
+      { men: 7, women: 0 },
       placed.openIndex,
       placed.womenIndex
     );
-    expect(after.map((p) => p.uuid)).toEqual(before.map((p) => p.uuid));
+    expect(after.map((p) => p.name)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
   });
 });
 
@@ -478,7 +488,7 @@ describe('coach stress scenarios (rec league)', () => {
     expect([...q.map((p) => p.uuid)].every((id) => initialIds.has(id))).toBe(true);
   });
 
-  it('late arrival: wrap would displace if appended; insert preserves current and they enter the queue', () => {
+  it('late arrival: wrapping current line keeps them pending at the end, not spliced in', () => {
     const splitCycle = 'ABBA' as const;
     const size = 7;
     const startingOpen = 4;
@@ -502,8 +512,6 @@ describe('coach stress scenarios (rec league)', () => {
       })
     ).toBe(true);
 
-    const pattern = getGenderPattern(lineIdx, size, startingOpen, splitCycle);
-    const before = getLine(openQ, women, pattern, oi, wi);
     const pendingFirst = partitionPendingForLineChange({
       pendingPlayers: [late],
       masterOpenQueue: openQ,
@@ -515,17 +523,25 @@ describe('coach stress scenarios (rec league)', () => {
       splitCycle,
       lineupSize: size,
     });
-    expect(pendingFirst.activate.map((p) => p.name)).toEqual(['Straggler']);
-    expect(pendingFirst.stillPending).toEqual([]);
-    const after = getLine(
-      pendingFirst.masterOpenQueue,
-      pendingFirst.masterWomenQueue,
-      pattern,
-      pendingFirst.openIndex,
-      pendingFirst.womenIndex
-    );
-    expect(after.map((p) => p.uuid)).toEqual(before.map((p) => p.uuid));
-    expect(pendingFirst.masterOpenQueue.some((p) => p.uuid === late.uuid)).toBe(true);
+    expect(pendingFirst.activate).toEqual([]);
+    expect(pendingFirst.stillPending.map((p) => p.name)).toEqual(['Straggler']);
+    expect(pendingFirst.masterOpenQueue.map((p) => p.name)).toEqual(['A', 'B', 'C', 'D']);
+
+    const adv = advanceRotationForPoint(lineIdx, size, startingOpen, splitCycle, oi, wi);
+    const pendingAfterPoint = partitionPendingForLineChange({
+      pendingPlayers: [late],
+      masterOpenQueue: openQ,
+      masterWomenQueue: women,
+      openIndex: adv.openIndex,
+      womenIndex: adv.womenIndex,
+      lineIndex: adv.nextLineIndex,
+      startingOpen,
+      splitCycle,
+      lineupSize: size,
+    });
+    expect(pendingAfterPoint.stillPending).toEqual([]);
+    expect(pendingAfterPoint.activate.map((p) => p.name)).toEqual(['Straggler']);
+    expect(pendingAfterPoint.masterOpenQueue.map((p) => p.name).at(-1)).toBe('Straggler');
   });
 
   it('late arrival on a short line stays pending (does not join this point)', () => {
@@ -546,290 +562,18 @@ describe('coach stress scenarios (rec league)', () => {
     expect(part.activate).toEqual([]);
     expect(part.stillPending.map((p) => p.name)).toEqual(['Fill']);
   });
-
-  it('short line leftover can join the new line after the point is scored', () => {
-    const opens = [o('A'), o('B')];
-    const women = [w('M'), w('N'), w('P')];
-    const lateOpen = o('Fill');
-    const flushed = partitionPendingForLineChange({
-      pendingPlayers: [lateOpen],
-      masterOpenQueue: opens,
-      masterWomenQueue: women,
-      openIndex: 4,
-      womenIndex: 3,
-      lineIndex: 1,
-      startingOpen: 4,
-      splitCycle: 'ABBA',
-      lineupSize: 7,
-      allowChangingCurrentLine: true,
-    });
-    expect(flushed.activate.map((p) => p.name)).toEqual(['Fill']);
-    expect(flushed.stillPending).toEqual([]);
-    expect(flushed.masterOpenQueue.some((p) => p.uuid === lateOpen.uuid)).toBe(true);
-  });
 });
 
 function names(players: Player[]): string[] {
   return players.map((p) => p.name);
 }
 
-function simulateArrivalThenScore(params: {
-  openQ: Player[];
-  womenQ: Player[];
-  openIndex: number;
-  womenIndex: number;
-  lineIndex: number;
-  startingOpen: number;
-  lineupSize: 4 | 5 | 6 | 7;
-  splitCycle: 'same' | 'ABBA' | 'AAB';
-  pending: Player[];
-}) {
-  const pattern = getGenderPattern(
-    params.lineIndex,
-    params.lineupSize,
-    params.startingOpen,
-    params.splitCycle
-  );
-  const currentBefore = getLine(
-    params.openQ,
-    params.womenQ,
-    pattern,
-    params.openIndex,
-    params.womenIndex
-  );
-  const nextBefore = getLine(
-    params.openQ,
-    params.womenQ,
-    getGenderPattern(
-      params.lineIndex + 1,
-      params.lineupSize,
-      params.startingOpen,
-      params.splitCycle
-    ),
-    params.openIndex + pattern.men,
-    params.womenIndex + pattern.women
-  );
-
-  const placed = partitionPendingForLineChange({
-    pendingPlayers: params.pending,
-    masterOpenQueue: params.openQ,
-    masterWomenQueue: params.womenQ,
-    openIndex: params.openIndex,
-    womenIndex: params.womenIndex,
-    lineIndex: params.lineIndex,
-    startingOpen: params.startingOpen,
-    splitCycle: params.splitCycle,
-    lineupSize: params.lineupSize,
-  });
-  const currentAfterPlace = getLine(
-    placed.masterOpenQueue,
-    placed.masterWomenQueue,
-    pattern,
-    placed.openIndex,
-    placed.womenIndex
-  );
-  const nextAfterPlace = getLine(
-    placed.masterOpenQueue,
-    placed.masterWomenQueue,
-    getGenderPattern(
-      params.lineIndex + 1,
-      params.lineupSize,
-      params.startingOpen,
-      params.splitCycle
-    ),
-    placed.openIndex + pattern.men,
-    placed.womenIndex + pattern.women
-  );
-
-  const advanced = {
-    openIndex: placed.openIndex + pattern.men,
-    womenIndex: placed.womenIndex + pattern.women,
-    lineIndex: params.lineIndex + 1,
-  };
-  const flushed = partitionPendingForLineChange({
-    pendingPlayers: placed.stillPending,
-    masterOpenQueue: placed.masterOpenQueue,
-    masterWomenQueue: placed.masterWomenQueue,
-    openIndex: advanced.openIndex,
-    womenIndex: advanced.womenIndex,
-    lineIndex: advanced.lineIndex,
-    startingOpen: params.startingOpen,
-    splitCycle: params.splitCycle,
-    lineupSize: params.lineupSize,
-    allowChangingCurrentLine: true,
-  });
-
-  return {
-    currentBefore,
-    currentAfterPlace,
-    nextBefore,
-    nextAfterPlace,
-    placed,
-    flushed,
-  };
-}
-
 describe('pending placement pressure tests', () => {
-  it('all-mens 7s with a wrapping window: pending enters queue without changing current line', () => {
+  it('all-mens wrapping window: stay pending rather than taking a middle number', () => {
     const openQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].map(o);
-    const womenQ: Player[] = [];
-    const oi = 7;
     const late = o('Late');
-    const pattern = { men: 7, women: 0 };
-    const before = getLine(openQ, womenQ, pattern, oi, 0);
     const placed = partitionPendingForLineChange({
       pendingPlayers: [late],
-      masterOpenQueue: openQ,
-      masterWomenQueue: womenQ,
-      openIndex: oi,
-      womenIndex: 0,
-      lineIndex: 1,
-      startingOpen: 7,
-      splitCycle: 'same',
-      lineupSize: 7,
-    });
-    expect(placed.stillPending).toEqual([]);
-    expect(placed.activate.map((p) => p.name)).toEqual(['Late']);
-    expect(placed.masterOpenQueue.some((p) => p.uuid === late.uuid)).toBe(true);
-    const after = getLine(
-      placed.masterOpenQueue,
-      placed.masterWomenQueue,
-      pattern,
-      placed.openIndex,
-      placed.womenIndex
-    );
-    expect(names(after)).toEqual(names(before));
-    expect(after.some((p) => p.uuid === late.uuid)).toBe(false);
-    const nextPattern = { men: 7, women: 0 };
-    const nextAfter = getLine(
-      placed.masterOpenQueue,
-      placed.masterWomenQueue,
-      nextPattern,
-      placed.openIndex + 7,
-      placed.womenIndex
-    );
-    expect(nextAfter.some((p) => p.uuid === late.uuid)).toBe(true);
-  });
-
-  it('all-womens 7s with a wrapping window: pending woman enters queue, current line frozen', () => {
-    const womenQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map(w);
-    const openQ: Player[] = [];
-    const wi = 7;
-    const late = w('Late');
-    const pattern = { men: 0, women: 7 };
-    const before = getLine(openQ, womenQ, pattern, 0, wi);
-    const placed = partitionPendingForLineChange({
-      pendingPlayers: [late],
-      masterOpenQueue: openQ,
-      masterWomenQueue: womenQ,
-      openIndex: 0,
-      womenIndex: wi,
-      lineIndex: 1,
-      startingOpen: 0,
-      splitCycle: 'same',
-      lineupSize: 7,
-    });
-    expect(placed.stillPending).toEqual([]);
-    const after = getLine(
-      placed.masterOpenQueue,
-      placed.masterWomenQueue,
-      pattern,
-      placed.openIndex,
-      placed.womenIndex
-    );
-    expect(names(after)).toEqual(names(before));
-    expect(placed.masterWomenQueue.some((p) => p.uuid === late.uuid)).toBe(true);
-    const nextAfter = getLine(
-      placed.masterOpenQueue,
-      placed.masterWomenQueue,
-      pattern,
-      placed.openIndex,
-      placed.womenIndex + 7
-    );
-    expect(nextAfter.some((p) => p.uuid === late.uuid)).toBe(true);
-  });
-
-  it('mixed 4-3 wrap (field 4-5-6-1): pending open joins queue; current stays; next line may include them', () => {
-    const openQ = [o('1'), o('2'), o('3'), o('4'), o('5'), o('6')];
-    const womenQ = [w('M'), w('N'), w('P'), w('Q')];
-    const oi = 3;
-    const late = o('7');
-    const pattern = { men: 4, women: 3 };
-    const before = getLine(openQ, womenQ, pattern, oi, 0);
-    expect(names(before).slice(0, 4)).toEqual(['4', '5', '6', '1']);
-    const placed = partitionPendingForLineChange({
-      pendingPlayers: [late],
-      masterOpenQueue: openQ,
-      masterWomenQueue: womenQ,
-      openIndex: oi,
-      womenIndex: 0,
-      lineIndex: 0,
-      startingOpen: 4,
-      splitCycle: 'same',
-      lineupSize: 7,
-    });
-    expect(placed.stillPending).toEqual([]);
-    const after = getLine(
-      placed.masterOpenQueue,
-      placed.masterWomenQueue,
-      pattern,
-      placed.openIndex,
-      placed.womenIndex
-    );
-    expect(names(after)).toEqual(names(before));
-    const nextAfter = getLine(
-      placed.masterOpenQueue,
-      placed.masterWomenQueue,
-      pattern,
-      placed.openIndex + 4,
-      placed.womenIndex + 3
-    );
-    expect(nextAfter.some((p) => p.uuid === late.uuid)).toBe(true);
-  });
-
-  it('arrival-then-score: current line of the point that just ended never changes', () => {
-    const openQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].map(o);
-    const r = simulateArrivalThenScore({
-      openQ,
-      womenQ: [],
-      openIndex: 7,
-      womenIndex: 0,
-      lineIndex: 1,
-      startingOpen: 7,
-      lineupSize: 7,
-      splitCycle: 'same',
-      pending: [o('Late')],
-    });
-    expect(names(r.currentAfterPlace)).toEqual(names(r.currentBefore));
-    expect(r.placed.stillPending).toEqual([]);
-    expect(r.flushed.stillPending).toEqual([]);
-    expect(r.nextAfterPlace.some((p) => p.name === 'Late')).toBe(true);
-  });
-
-  it('protects current line only: next line is allowed to change on arrival', () => {
-    const openQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(o);
-    const r = simulateArrivalThenScore({
-      openQ,
-      womenQ: [],
-      openIndex: 0,
-      womenIndex: 0,
-      lineIndex: 0,
-      startingOpen: 7,
-      lineupSize: 7,
-      splitCycle: 'same',
-      pending: [o('Late')],
-    });
-    expect(names(r.currentAfterPlace)).toEqual(names(r.currentBefore));
-    expect(names(r.nextAfterPlace)).not.toEqual(names(r.nextBefore));
-    expect(r.nextAfterPlace.some((p) => p.name === 'Late')).toBe(true);
-  });
-
-  it('two pending opens on all-mens: both enter; current line set stays identical', () => {
-    const openQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map(o);
-    const pattern = { men: 7, women: 0 };
-    const before = getLine(openQ, [], pattern, 7, 0);
-    const placed = partitionPendingForLineChange({
-      pendingPlayers: [o('Late1'), o('Late2')],
       masterOpenQueue: openQ,
       masterWomenQueue: [],
       openIndex: 7,
@@ -839,15 +583,109 @@ describe('pending placement pressure tests', () => {
       splitCycle: 'same',
       lineupSize: 7,
     });
-    expect(placed.activate.map((p) => p.name)).toEqual(['Late1', 'Late2']);
+    expect(placed.activate).toEqual([]);
+    expect(placed.stillPending.map((p) => p.name)).toEqual(['Late']);
+    expect(placed.masterOpenQueue.map((p) => p.name)).toEqual(openQ.map((p) => p.name));
+  });
+
+  it('all-mens: after rotation leaves the last slot off the field, they join as the last number', () => {
+    const openQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].map(o);
+    const late = o('Late');
+    // Point 3: start 21 % 10 = 1, window 1–7 does not include the last seat.
+    const placed = partitionPendingForLineChange({
+      pendingPlayers: [late],
+      masterOpenQueue: openQ,
+      masterWomenQueue: [],
+      openIndex: 21,
+      womenIndex: 0,
+      lineIndex: 3,
+      startingOpen: 7,
+      splitCycle: 'same',
+      lineupSize: 7,
+    });
+    expect(placed.stillPending).toEqual([]);
+    expect(placed.masterOpenQueue.map((p) => p.name).at(-1)).toBe('Late');
     const after = getLine(
       placed.masterOpenQueue,
       placed.masterWomenQueue,
-      pattern,
+      { men: 7, women: 0 },
+      placed.openIndex,
+      placed.womenIndex
+    );
+    expect(after.some((p) => p.uuid === late.uuid)).toBe(false);
+  });
+
+  it('all-womens wrapping window: stay pending, queue order unchanged', () => {
+    const womenQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map(w);
+    const late = w('Late');
+    const placed = partitionPendingForLineChange({
+      pendingPlayers: [late],
+      masterOpenQueue: [],
+      masterWomenQueue: womenQ,
+      openIndex: 0,
+      womenIndex: 7,
+      lineIndex: 1,
+      startingOpen: 0,
+      splitCycle: 'same',
+      lineupSize: 7,
+    });
+    expect(placed.stillPending.map((p) => p.name)).toEqual(['Late']);
+    expect(placed.masterWomenQueue.map((p) => p.name)).toEqual(womenQ.map((p) => p.name));
+  });
+
+  it('mixed wrap 4-5-6-1: #7 would be on current line → pending, not inserted as 2', () => {
+    const openQ = [o('1'), o('2'), o('3'), o('4'), o('5'), o('6')];
+    const womenQ = [w('M'), w('N'), w('P'), w('Q')];
+    const before = getLine(openQ, womenQ, { men: 4, women: 3 }, 3, 0);
+    expect(names(before).slice(0, 4)).toEqual(['4', '5', '6', '1']);
+    const placed = partitionPendingForLineChange({
+      pendingPlayers: [o('7')],
+      masterOpenQueue: openQ,
+      masterWomenQueue: womenQ,
+      openIndex: 3,
+      womenIndex: 0,
+      lineIndex: 0,
+      startingOpen: 4,
+      splitCycle: 'same',
+      lineupSize: 7,
+    });
+    expect(placed.stillPending.map((p) => p.name)).toEqual(['7']);
+    expect(placed.masterOpenQueue.map((p) => p.name)).toEqual(['1', '2', '3', '4', '5', '6']);
+  });
+
+  it('index 0 all-mens: next line may include the new last number; current does not', () => {
+    const openQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(o);
+    const late = o('Late');
+    const before = getLine(openQ, [], { men: 7, women: 0 }, 0, 0);
+    const placed = partitionPendingForLineChange({
+      pendingPlayers: [late],
+      masterOpenQueue: openQ,
+      masterWomenQueue: [],
+      openIndex: 0,
+      womenIndex: 0,
+      lineIndex: 0,
+      startingOpen: 7,
+      splitCycle: 'same',
+      lineupSize: 7,
+    });
+    expect(placed.stillPending).toEqual([]);
+    expect(placed.masterOpenQueue.map((p) => p.name).at(-1)).toBe('Late');
+    const after = getLine(
+      placed.masterOpenQueue,
+      placed.masterWomenQueue,
+      { men: 7, women: 0 },
       placed.openIndex,
       placed.womenIndex
     );
     expect(names(after)).toEqual(names(before));
+    const nextAfter = getLine(
+      placed.masterOpenQueue,
+      placed.masterWomenQueue,
+      { men: 7, women: 0 },
+      placed.openIndex + 7,
+      placed.womenIndex
+    );
+    expect(nextAfter.some((p) => p.uuid === late.uuid)).toBe(true);
   });
 
   it('pending of the unused gender on all-mens joins that empty queue immediately', () => {
@@ -865,48 +703,44 @@ describe('pending placement pressure tests', () => {
     });
     expect(placed.stillPending).toEqual([]);
     expect(placed.masterWomenQueue.map((p) => p.name)).toEqual(['Woman']);
-    const after = getLine(
-      placed.masterOpenQueue,
-      placed.masterWomenQueue,
-      { men: 7, women: 0 },
-      placed.openIndex,
-      placed.womenIndex
-    );
-    expect(after.every((p) => p.gender === 'O')).toBe(true);
   });
 
-  it('brute force: every start index on all-mens 8–14 player rosters keeps current line', () => {
+  it('brute force: if they join, they are always last; if last seat is on the field, they stay pending', () => {
     for (let L = 8; L <= 14; L++) {
       const openQ = Array.from({ length: L }, (_, i) => o(`P${i}`));
       for (let start = 0; start < L * 2; start++) {
         const late = o(`Late-${L}-${start}`);
         const before = getLine(openQ, [], { men: 7, women: 0 }, start, 0);
-        const placed = insertPlayerPreservingCurrentLine(openQ, start, 7, late);
-        expect(placed).not.toBeNull();
-        const after = getLine(placed!.queue, [], { men: 7, women: 0 }, placed!.rawIndex, 0);
-        expect(names(after)).toEqual(names(before));
-        expect(placed!.queue.some((p) => p.uuid === late.uuid)).toBe(true);
-        expect(after.some((p) => p.uuid === late.uuid)).toBe(false);
+        const placed = partitionPendingForLineChange({
+          pendingPlayers: [late],
+          masterOpenQueue: openQ,
+          masterWomenQueue: [],
+          openIndex: start,
+          womenIndex: 0,
+          lineIndex: 0,
+          startingOpen: 7,
+          splitCycle: 'same',
+          lineupSize: 7,
+        });
+        if (placed.stillPending.length) {
+          expect(placed.masterOpenQueue.map((p) => p.uuid)).toEqual(openQ.map((p) => p.uuid));
+        } else {
+          expect(placed.masterOpenQueue.map((p) => p.name).at(-1)).toBe(late.name);
+          const after = getLine(
+            placed.masterOpenQueue,
+            placed.masterWomenQueue,
+            { men: 7, women: 0 },
+            placed.openIndex,
+            placed.womenIndex
+          );
+          expect(names(after)).toEqual(names(before));
+          expect(after.some((p) => p.uuid === late.uuid)).toBe(false);
+        }
       }
     }
   });
 
-  it('brute force: all-womens every start index keeps current line', () => {
-    for (let L = 8; L <= 12; L++) {
-      const womenQ = Array.from({ length: L }, (_, i) => w(`P${i}`));
-      for (let start = 0; start < L * 2; start++) {
-        const late = w(`Late-${L}-${start}`);
-        const before = getLine([], womenQ, { men: 0, women: 7 }, 0, start);
-        const placed = insertPlayerPreservingCurrentLine(womenQ, start, 7, late);
-        expect(placed).not.toBeNull();
-        const after = getLine([], placed!.queue, { men: 0, women: 7 }, 0, placed!.rawIndex);
-        expect(names(after)).toEqual(names(before));
-        expect(after.some((p) => p.uuid === late.uuid)).toBe(false);
-      }
-    }
-  });
-
-  it('brute force: mixed 4-3 open queue every wrapping start keeps current open slice', () => {
+  it('brute force mixed 4-3: join only as last open, never mid-list', () => {
     const openQ = Array.from({ length: 6 }, (_, i) => o(`O${i}`));
     const womenQ = Array.from({ length: 5 }, (_, i) => w(`W${i}`));
     const pattern = { men: 4, women: 3 };
@@ -924,49 +758,27 @@ describe('pending placement pressure tests', () => {
         splitCycle: 'same',
         lineupSize: 7,
       });
-      expect(placed.stillPending).toEqual([]);
-      const after = getLine(
-        placed.masterOpenQueue,
-        placed.masterWomenQueue,
-        pattern,
-        placed.openIndex,
-        placed.womenIndex
-      );
-      expect(names(after)).toEqual(names(before));
+      if (placed.activate.length) {
+        expect(placed.masterOpenQueue.map((p) => p.name).at(-1)).toBe(late.name);
+        const after = getLine(
+          placed.masterOpenQueue,
+          placed.masterWomenQueue,
+          pattern,
+          placed.openIndex,
+          placed.womenIndex
+        );
+        expect(names(after)).toEqual(names(before));
+      } else {
+        expect(placed.masterOpenQueue.map((p) => p.uuid)).toEqual(openQ.map((p) => p.uuid));
+      }
     }
   });
 
-  it('exact 7-on-7 all-mens: 8th player sits behind current 7', () => {
+  it('exact 7-on-7 all-mens: 8th player is last and not on current line', () => {
     const openQ = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(o);
     const late = o('Late');
-    const before = getLine(openQ, [], { men: 7, women: 0 }, 7, 0);
+    const before = getLine(openQ, [], { men: 7, women: 0 }, 0, 0);
     const placed = partitionPendingForLineChange({
-      pendingPlayers: [late],
-      masterOpenQueue: openQ,
-      masterWomenQueue: [],
-      openIndex: 7,
-      womenIndex: 0,
-      lineIndex: 1,
-      startingOpen: 7,
-      splitCycle: 'same',
-      lineupSize: 7,
-    });
-    expect(placed.stillPending).toEqual([]);
-    const after = getLine(
-      placed.masterOpenQueue,
-      placed.masterWomenQueue,
-      { men: 7, women: 0 },
-      placed.openIndex,
-      placed.womenIndex
-    );
-    expect(names(after)).toEqual(names(before));
-    expect(placed.masterOpenQueue).toHaveLength(8);
-  });
-
-  it('five-player all-mens short line stays pending until allowChangingCurrentLine', () => {
-    const openQ = ['A', 'B', 'C', 'D', 'E'].map(o);
-    const late = o('Late');
-    const blocked = partitionPendingForLineChange({
       pendingPlayers: [late],
       masterOpenQueue: openQ,
       masterWomenQueue: [],
@@ -977,21 +789,36 @@ describe('pending placement pressure tests', () => {
       splitCycle: 'same',
       lineupSize: 7,
     });
-    expect(blocked.stillPending.map((p) => p.name)).toEqual(['Late']);
+    expect(placed.stillPending).toEqual([]);
+    expect(placed.masterOpenQueue.map((p) => p.name)).toEqual([
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'Late',
+    ]);
+    const after = getLine(
+      placed.masterOpenQueue,
+      placed.masterWomenQueue,
+      { men: 7, women: 0 },
+      placed.openIndex,
+      placed.womenIndex
+    );
+    expect(names(after)).toEqual(names(before));
+  });
+
+  it('Add now still appends at the end even if that number is on the current line', () => {
+    const openQ = ['A', 'B', 'C', 'D', 'E'].map(o);
+    const late = o('Late');
     const flushed = partitionPendingForLineChange({
       pendingPlayers: [late],
       masterOpenQueue: openQ,
       masterWomenQueue: [],
-      openIndex: 7,
+      openIndex: 0,
       womenIndex: 0,
-      lineIndex: 1,
+      lineIndex: 0,
       startingOpen: 7,
       splitCycle: 'same',
       lineupSize: 7,
       allowChangingCurrentLine: true,
     });
     expect(flushed.stillPending).toEqual([]);
-    expect(flushed.masterOpenQueue.some((p) => p.uuid === late.uuid)).toBe(true);
+    expect(flushed.masterOpenQueue.map((p) => p.name).at(-1)).toBe('Late');
   });
 });
-

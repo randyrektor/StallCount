@@ -1104,6 +1104,31 @@ input:focus {
   flex-shrink: 0;
 }
 
+.player-seat-add-now {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  line-height: 26px;
+}
+
+.player-seat-add-now:hover,
+.player-seat-add-now:focus-visible {
+  background: #fff;
+}
+
+.player-seat-add-now:active {
+  transform: scale(0.97);
+}
+
 .player-seat--empty {
   background: transparent;
   border: 2px dashed var(--border-soft);

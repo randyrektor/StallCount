@@ -1,5 +1,5 @@
 import type { Player, LineupSize, SplitCycle } from '../types';
-import { getLine, getWrapped } from './lineRotation';
+import { getLine } from './lineRotation';
 import {
   getGenderPattern,
   removePlayerFromRotationQueue,
@@ -136,57 +136,8 @@ function sameLine(a: Player[], b: Player[]): boolean {
   return a.length === b.length && a.every((player, i) => player.uuid === b[i]?.uuid);
 }
 
-/**
- * Put a player into a gender queue without changing who is currently fielded.
- * Prefers the first rotation slot after the current window so they can appear
- * on next line. Returns null on a true short line, where adding them would
- * walk onto the field.
- */
-export function insertPlayerPreservingCurrentLine(
-  queue: Player[],
-  rawIndex: number,
-  lineCount: number,
-  player: Player
-): { queue: Player[]; rawIndex: number } | null {
-  if (queue.some((p) => p.uuid === player.uuid)) {
-    return { queue: [...queue], rawIndex };
-  }
-
-  const L = queue.length;
-  if (lineCount <= 0) {
-    return { queue: [...queue, player], rawIndex: L === 0 ? 0 : rawIndex };
-  }
-  if (L === 0) return null;
-
-  const current = getWrapped(queue, rawIndex, lineCount);
-
-  // True short line: even after adding, getWrapped still returns everyone,
-  // so the new player would walk onto the field.
-  if (lineCount > L) return null;
-
-  let nextQueue: Player[];
-  if (lineCount === L) {
-    // Exact lineup: everyone is out, but the next person can sit behind them.
-    nextQueue = [...queue, player];
-  } else {
-    const s = ((rawIndex % L) + L) % L;
-    const windowEnd = s + lineCount;
-    const insertAt = windowEnd <= L ? windowEnd : windowEnd - L;
-    nextQueue = [...queue.slice(0, insertAt), player, ...queue.slice(insertAt)];
-  }
-
-  const Ln = nextQueue.length;
-  const rotations = Math.floor(rawIndex / L);
-  for (let offset = 0; offset < Ln; offset++) {
-    const slice = getWrapped(nextQueue, offset, lineCount);
-    if (sameLine(current, slice)) {
-      return { queue: nextQueue, rawIndex: rotations * Ln + offset };
-    }
-  }
-  return null;
-}
-
-function forcePlayerIntoQueue(
+/** Always the next number: append at the end and keep the same rotation start. */
+export function appendPlayerToQueue(
   queue: Player[],
   rawIndex: number,
   player: Player
@@ -213,12 +164,11 @@ export type PendingPlacement = {
 };
 
 /**
- * After kickoff, pending players join the rotation as soon as they can without
- * changing who is on the current (already fielded) line. Next line may change.
- * Never fill a short current line mid-point.
+ * Late arrivals always take the next number (end of their gender queue).
+ * They stay pending only when that last slot would be on the already-fielded
+ * current line. Next line / bench is fine — captains can drag from there.
  *
- * Pass allowChangingCurrentLine after a point is scored so leftovers (short
- * roster) can take the new line.
+ * Pass allowChangingCurrentLine for an explicit "Add now" override.
  */
 export function partitionPendingForLineChange(params: {
   pendingPlayers: Player[];
@@ -243,25 +193,14 @@ export function partitionPendingForLineChange(params: {
   let openIndex = params.openIndex;
   let womenIndex = params.womenIndex;
   const currentLine = getLine(openQ, womenQ, pattern, openIndex, womenIndex);
+  const allow = params.allowChangingCurrentLine === true;
 
   const activate: Player[] = [];
   const stillPending: Player[] = [];
 
   for (const p of params.pendingPlayers) {
-    const allow = params.allowChangingCurrentLine === true;
     if (p.gender === 'O') {
-      const preserved = insertPlayerPreservingCurrentLine(
-        openQ,
-        openIndex,
-        pattern.men,
-        p
-      );
-      const placed =
-        preserved ?? (allow ? forcePlayerIntoQueue(openQ, openIndex, p) : null);
-      if (!placed) {
-        stillPending.push(p);
-        continue;
-      }
+      const placed = appendPlayerToQueue(openQ, openIndex, p);
       const lineAfter = getLine(
         placed.queue,
         womenQ,
@@ -277,18 +216,7 @@ export function partitionPendingForLineChange(params: {
       openIndex = placed.rawIndex;
       activate.push(p);
     } else {
-      const preserved = insertPlayerPreservingCurrentLine(
-        womenQ,
-        womenIndex,
-        pattern.women,
-        p
-      );
-      const placed =
-        preserved ?? (allow ? forcePlayerIntoQueue(womenQ, womenIndex, p) : null);
-      if (!placed) {
-        stillPending.push(p);
-        continue;
-      }
+      const placed = appendPlayerToQueue(womenQ, womenIndex, p);
       const lineAfter = getLine(
         openQ,
         placed.queue,
@@ -354,18 +282,13 @@ export function restoreActivatedPendingAfterUndo(params: {
   return { masterOpenQueue, masterWomenQueue, pendingPlayers };
 }
 
-/**
- * Insert activated pending players into master queues. Preserves Current Line
- * when possible; next line is allowed to change.
- */
+/** Append activated pending players at the end of their gender queue. */
 export function applyPendingActivationsToQueues(
   masterOpenQueue: Player[],
   masterWomenQueue: Player[],
   activate: Player[],
   openIndex = 0,
-  womenIndex = 0,
-  pattern: { men: number; women: number } = { men: 0, women: 0 },
-  allowChangingCurrentLine = false
+  womenIndex = 0
 ): {
   masterOpenQueue: Player[];
   masterWomenQueue: Player[];
@@ -378,33 +301,11 @@ export function applyPendingActivationsToQueues(
   let nextWomenIndex = womenIndex;
   for (const p of activate) {
     if (p.gender === 'O') {
-      const preserved = insertPlayerPreservingCurrentLine(
-        open,
-        nextOpenIndex,
-        pattern.men,
-        p
-      );
-      const placed =
-        preserved ??
-        (allowChangingCurrentLine
-          ? forcePlayerIntoQueue(open, nextOpenIndex, p)
-          : preserved);
-      if (!placed) continue;
+      const placed = appendPlayerToQueue(open, nextOpenIndex, p);
       open = placed.queue;
       nextOpenIndex = placed.rawIndex;
     } else {
-      const preserved = insertPlayerPreservingCurrentLine(
-        women,
-        nextWomenIndex,
-        pattern.women,
-        p
-      );
-      const placed =
-        preserved ??
-        (allowChangingCurrentLine
-          ? forcePlayerIntoQueue(women, nextWomenIndex, p)
-          : preserved);
-      if (!placed) continue;
+      const placed = appendPlayerToQueue(women, nextWomenIndex, p);
       women = placed.queue;
       nextWomenIndex = placed.rawIndex;
     }

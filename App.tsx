@@ -25,7 +25,7 @@ import {
 import { COLORS } from './src/constants';
 import { loadRosterForTeam, saveRosterForTeam } from './src/utils/rosterStorage';
 import { mergeImportedPlayers, type ParsedRosterRow } from './src/utils/rosterImport';
-import { loadGameSession, scheduleSaveGameSession, clearGameSession, type GameSession } from './src/utils/gameSession';
+import { loadGameSession, scheduleSaveGameSession, clearGameSession, clearGameSessionForTeam, type GameSession } from './src/utils/gameSession';
 import { buildSpectatorSnapshot } from './src/utils/spectatorState';
 import { isSoftCapReached, parseSoftCap, type SoftPointCap } from './src/utils/softCap';
 import { parseGameClockTime, type GameClockTime } from './src/utils/gameClock';
@@ -235,6 +235,12 @@ export default function App() {
     applyRestoredSession(session);
   };
 
+  const handleForgetTeam = (teamName: string) => {
+    if (clearGameSessionForTeam(teamName)) {
+      setResumeLabel(null);
+    }
+  };
+
   const handleKickoff = () => {
     ensureWatchRoom();
     setGameStarted(true);
@@ -417,50 +423,30 @@ export default function App() {
       ...getWrapped(s.masterOpenQueue, s.openIndex, pattern.men),
       ...getWrapped(s.masterWomenQueue, s.womenIndex, pattern.women),
     ].map((p) => p.uuid);
-    // Place pending against the line that just played (Current Line frozen).
-    // They may join Next Line. Then rotate, then let leftovers take the new line.
+    // Rotate first, then append pending at the end if that number is not on
+    // the new current line. Never splice them into the middle of the queue.
     const placed = partitionPendingForLineChange({
       pendingPlayers: s.pendingPlayers,
       masterOpenQueue: s.masterOpenQueue,
       masterWomenQueue: s.masterWomenQueue,
-      openIndex: s.openIndex,
-      womenIndex: s.womenIndex,
-      lineIndex: s.lineIndex,
+      openIndex: s.openIndex + pattern.men,
+      womenIndex: s.womenIndex + pattern.women,
+      lineIndex: s.lineIndex + 1,
       startingOpen,
       lineupSize,
       splitCycle,
     });
-    const advanced = {
+    const next = {
       ...s,
       team1Score: team === 1 ? s.team1Score + 1 : s.team1Score,
       team2Score: team === 2 ? s.team2Score + 1 : s.team2Score,
       masterOpenQueue: placed.masterOpenQueue,
       masterWomenQueue: placed.masterWomenQueue,
       pendingPlayers: placed.stillPending,
-      openIndex: placed.openIndex + pattern.men,
-      womenIndex: placed.womenIndex + pattern.women,
+      openIndex: placed.openIndex,
+      womenIndex: placed.womenIndex,
       lineIndex: s.lineIndex + 1,
       pointNumber: s.pointNumber + 1,
-    };
-    const flushed = partitionPendingForLineChange({
-      pendingPlayers: advanced.pendingPlayers,
-      masterOpenQueue: advanced.masterOpenQueue,
-      masterWomenQueue: advanced.masterWomenQueue,
-      openIndex: advanced.openIndex,
-      womenIndex: advanced.womenIndex,
-      lineIndex: advanced.lineIndex,
-      startingOpen,
-      lineupSize,
-      splitCycle,
-      allowChangingCurrentLine: true,
-    });
-    const next = {
-      ...advanced,
-      masterOpenQueue: flushed.masterOpenQueue,
-      masterWomenQueue: flushed.masterWomenQueue,
-      pendingPlayers: flushed.stillPending,
-      openIndex: flushed.openIndex,
-      womenIndex: flushed.womenIndex,
     };
     scoringRef.current = next;
     setScoreHistory((prev) => [
@@ -710,6 +696,44 @@ export default function App() {
     };
   };
 
+  const commitLinePattern = (
+    nextSize: LineupSize,
+    nextOpen: number,
+    nextCycle: SplitCycle
+  ) => {
+    const size = nextSize;
+    const starting = clampOpenCount(nextOpen, size);
+    setLineupSize(size);
+    setStartingOpen(starting);
+    setSplitCycle(nextCycle);
+    if (!gameStarted || pendingPlayers.length === 0) return;
+    const placed = partitionPendingForLineChange({
+      pendingPlayers,
+      masterOpenQueue,
+      masterWomenQueue,
+      openIndex,
+      womenIndex,
+      lineIndex,
+      startingOpen: starting,
+      lineupSize: size,
+      splitCycle: nextCycle,
+    });
+    if (placed.activate.length === 0) return;
+    setMasterOpenQueue(placed.masterOpenQueue);
+    setMasterWomenQueue(placed.masterWomenQueue);
+    setOpenIndex(placed.openIndex);
+    setWomenIndex(placed.womenIndex);
+    setPendingPlayers(placed.stillPending);
+    scoringRef.current = {
+      ...scoringRef.current,
+      masterOpenQueue: placed.masterOpenQueue,
+      masterWomenQueue: placed.masterWomenQueue,
+      openIndex: placed.openIndex,
+      womenIndex: placed.womenIndex,
+      pendingPlayers: placed.stillPending,
+    };
+  };
+
   // Changing players-per-point or gender split only changes window *length*.
   // Keep openIndex / womenIndex (next-on) exactly where they are.
 
@@ -821,7 +845,14 @@ export default function App() {
   }
 
   if (showHomeScreen) {
-    return <HomeScreen onStart={handleStartGame} onResume={resumeLabel ? handleResumeGame : undefined} resumeLabel={resumeLabel} />;
+    return (
+      <HomeScreen
+        onStart={handleStartGame}
+        onResume={resumeLabel ? handleResumeGame : undefined}
+        resumeLabel={resumeLabel}
+        onForgetTeam={handleForgetTeam}
+      />
+    );
   }
 
   return (
@@ -855,11 +886,14 @@ export default function App() {
           halfAt={halfAt}
           endAt={endAt}
           onLineupSizeChange={(size) => {
-            setLineupSize(size);
-            setStartingOpen((open) => clampOpenCount(open, size));
+            commitLinePattern(size, startingOpen, splitCycle);
           }}
-          onStartingOpenChange={setStartingOpen}
-          onSplitCycleChange={setSplitCycle}
+          onStartingOpenChange={(open) => {
+            commitLinePattern(lineupSize, open, splitCycle);
+          }}
+          onSplitCycleChange={(cycle) => {
+            commitLinePattern(lineupSize, startingOpen, cycle);
+          }}
           onSoftCapChange={setSoftCap}
           onHalfAtChange={setHalfAt}
           onEndAtChange={setEndAt}
@@ -913,14 +947,17 @@ export default function App() {
         onTeam1NameChange={setTeam1Name}
         onTeam2NameChange={setTeam2Name}
         startingOpen={startingOpen}
-        onStartingOpenChange={setStartingOpen}
+        onStartingOpenChange={(open) => {
+          commitLinePattern(lineupSize, open, splitCycle);
+        }}
         lineupSize={lineupSize}
         onLineupSizeChange={(size) => {
-          setLineupSize(size);
-          setStartingOpen((open) => clampOpenCount(open, size));
+          commitLinePattern(size, startingOpen, splitCycle);
         }}
         splitCycle={splitCycle}
-        onSplitCycleChange={setSplitCycle}
+        onSplitCycleChange={(cycle) => {
+          commitLinePattern(lineupSize, startingOpen, cycle);
+        }}
         softCap={softCap}
         onSoftCapChange={setSoftCap}
         halfAt={halfAt}

@@ -7,14 +7,16 @@ import {
   removeRecentTeam,
   saveRecentTeams,
 } from '../utils/recentTeams';
+import { deleteRosterForTeam } from '../utils/rosterStorage';
 
 interface HomeScreenProps {
   onStart: (teamName: string) => void;
   onResume?: () => void;
   resumeLabel?: string | null;
+  onForgetTeam?: (teamName: string) => void;
 }
 
-export function HomeScreen({ onStart, onResume, resumeLabel }: HomeScreenProps) {
+export function HomeScreen({ onStart, onResume, resumeLabel, onForgetTeam }: HomeScreenProps) {
   const [teamName, setTeamName] = useState('');
   const [savedTeams, setSavedTeams] = useState<string[]>([]);
 
@@ -43,6 +45,8 @@ export function HomeScreen({ onStart, onResume, resumeLabel }: HomeScreenProps) 
   const handleRemoveTeam = (name: string) => {
     const updatedTeams = removeRecentTeam(savedTeams, name);
     saveRecentTeams(updatedTeams);
+    deleteRosterForTeam(name);
+    onForgetTeam?.(name);
     setSavedTeams(updatedTeams);
     if (teamName === name) setTeamName('');
   };
